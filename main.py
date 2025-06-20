@@ -5,7 +5,8 @@ file_path = "C:/Users/tw010/Desktop/인공지능및응용/논문/65이상 생명
 output_path = "C:\\Users\\tw010\\Desktop\\인공지능및응용\\논문\\적합 결과_여자_텀페이퍼.csv"
 df = pd.read_excel(file_path, sheet_name="Sheet1")
 
-
+#test
+a = 1
 
 df_surv = df[df['title'] == '생존자(여자)']
 age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
