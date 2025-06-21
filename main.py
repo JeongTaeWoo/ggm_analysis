@@ -1,12 +1,10 @@
 import pandas as pd
 import func
 
-file_path = "C:/Users/tw010/Desktop/인공지능및응용/논문/65이상 생명표.xlsx"
-output_path = "C:\\Users\\tw010\\Desktop\\인공지능및응용\\논문\\적합 결과_여자_텀페이퍼.csv"
+file_path = "C:/Users/pc/Desktop/project/65이상 생명표.xlsx"
+output_path = "C:/Users/pc/Desktop/project/적합 결과_여자.csv"
 df = pd.read_excel(file_path, sheet_name="Sheet1")
 
-#test
-a = 1
 
 df_surv = df[df['title'] == '생존자(여자)']
 age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
@@ -46,7 +44,7 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #func.run_batch(years = range(1990, 2021), #전체 범위는 (1970, 2024)
 #               sex = '여자', df = df, trial = 200,
 #               center = 80, scale = 3, max_weight = 5,
-#               output_path = "C:/Users/tw010/Desktop/인공지능및응용/논문/적합 결과_여자__텀페이퍼.csv")
+#               output_path = "C:/Users/tw010/Desktop/project/적합 결과_여자__텀페이퍼.csv")
                
                
 # TODO GM 그래프도 같이 띄우고 RMSE 평가치도 바로 나오게끔 하자
@@ -56,8 +54,9 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
 #              center = 90, scale = 3, max_weight = 10)
 
-func.run_test(year = 2013, sex = '여자', df = df, trial = 100, 
-              center = 95, scale = 0.5, max_weight = 10, result_path = output_path)
+func.run_test(year = 1995, sex = '남자', df = df, trial = 100, use_weights=False,
+              center = 85, scale = 3, max_weight = 5, result_path = None,
+              opt_func = "dual_annealing")
 
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
