@@ -107,7 +107,15 @@ def run_optimizer(opt_func, neg_log_likelihood, bounds = None, init_params = Non
         return dual_annealing(
             func = neg_log_likelihood,
             bounds = bounds,
-            maxiter = 500
+            maxiter = 1000,
+            initial_temp = 5230.0, # init = 5230.0
+            visit = 2.62, # init = 2.62
+            seed = None,
+            local_search_options = {
+                'method' : 'L-BFGS-B'
+            }
+            #,x0 = [0.0001, 0.1, 0.08, 0.0005]
+
         )
     
     else:
@@ -122,7 +130,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
            opt_func = "differential_evolution") :
     # 경계 설정
     if bounds is None :
-        bounds = [(0.0001, 0.005), (0.05, 0.3), (0.05, 0.3), (0.0001, 0.05)]
+        bounds = [(0.00001, 0.005), (0.05, 0.3), (0.05, 0.3), (0.0001, 0.05)]
 
     epsilon = 1e-7
     best_result = None
@@ -226,7 +234,7 @@ def calc(result, age) :
     return fitted_mu, x_star
     
 def run_batch(years, sex, df, output_path, trial = 100, 
-              use_weights = True, use_filter = True,
+              use_weights = True, use_rmse_filter = True,
               center = 80, scale = 3, max_weight = 5, threshold = 0.005,
               opt_func = "differential_evolution") :
     """
@@ -275,7 +283,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
         result = fit_ggm(age, Dx, Ex, n = trial, notice = True, 
                             weight_func = weight_func,
                             weight_params = weight_params,
-                            use_rmse_filter = use_filter, 
+                            use_rmse_filter = use_rmse_filter, 
                             rmse_filter_params = function_params,
                             opt_func = opt_func)
         if result and result.success:
@@ -300,7 +308,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     
    
     
-def run_test(year, sex, df, trial = 100, use_weights = True, use_filter = True,
+def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True,
              center = 80, scale = 3, max_weight = 5, threshold = 0.005,
              result_path = None, opt_func = "differential_evolution") :
     records = []
@@ -340,7 +348,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_filter = True,
     result = fit_ggm(age, Dx, Ex, n = trial, notice = True, bounds = None,
                         weight_func = weight_func, 
                         weight_params = weight_params,
-                        use_rmse_filter = use_filter,
+                        use_rmse_filter = use_rmse_filter,
                         rmse_filter_params = function_params,
                         opt_func = opt_func)
     if result and result.success:

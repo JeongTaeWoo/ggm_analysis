@@ -54,14 +54,19 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
 #              center = 90, scale = 3, max_weight = 10)
 
-func.run_test(year = 1995, sex = '남자', df = df, trial = 100, use_weights=False,
-              center = 85, scale = 3, max_weight = 5, result_path = None,
-              opt_func = "dual_annealing")
+func.run_test(year = 1995, sex = '남자', df = df, trial = 1000, use_weights = False,
+              center = 85, scale = 3, max_weight = 10, result_path = None,
+              opt_func = "differential_evolution")
 
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
 #func.fitted_plot(result, mu_obs)
 
 
+"""
+opt_func 목록
 
+differential_evolution
+dual_annealing
+"""
 
