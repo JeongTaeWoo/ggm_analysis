@@ -2,12 +2,27 @@ from scipy.optimize import differential_evolution, minimize, dual_annealing
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 
 Dx = None; Ex = None
 
-file_path = "C:/Users/pc/Desktop/project/65이상 생명표.xlsx"
-df = pd.read_excel(file_path, sheet_name="Sheet1")
+# 후보 경로들
+file_path_candidates = [
+    "C:/Users/pc/Desktop/project/65이상 생명표.xlsx",
+    "C:/Users/tw010/Desktop/project/65이상 생명표.xlsx"
+]
+
+# 성공한 경로를 찾기
+file_path = None
+file_path = next((p for p in file_path_candidates if os.path.exists(p)), None)
+
+if file_path is None:
+    raise FileNotFoundError("생명표 파일을 찾을 수 없습니다. 경로를 확인하세요.")
+else:
+    print("경로 연결됨")
+    df = pd.read_excel(file_path, sheet_name="Sheet1")
+
 df_surv = df[df['title'] == '생존자(여자)']
 age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
 age = age_raw[:-1].reset_index(drop=True)
