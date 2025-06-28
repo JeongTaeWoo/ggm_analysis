@@ -72,7 +72,7 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
 #              center = 90, scale = 3, max_weight = 10)
 
-func.run_test(year = 1995, sex = '남자', df = df, trial = 500, use_weights = False,
+func.run_test(year = 2001, sex = '남자', df = df, trial = 500, use_weights = False,
               center = 85, scale = 3, max_weight = 10, result_path = None,
               opt_func = "differential_evolution")
 

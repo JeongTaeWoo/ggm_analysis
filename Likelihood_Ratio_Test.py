@@ -1,0 +1,157 @@
+#  Information measures anddesignissues in the study of mortality deceleration: findings for the gamma-Gompertz model 논문을 참고함
+
+# frailty가 존재하는지 판별하는 테스트
+# H0 : gamma = 0 ; H1 : gamma > 0
+# 이때 Likelihood Ratio (우도비) 검정통계량 T = 2(L1 - L0)
+# L(0,1)은 각 가설의 경우에서 발생하는 최대 로그우도값
+# 본래는 Self & Liang, 1987의 연구처럼 혼합 카이제곱 분포를 사용해야 하지만, 
+# 편의상 자유도 1인 카이제곱으로 사용, 카이제곱(1, 0.95) = 3.84
+
+
+# 여기에서 frailty의 발생 가능성을 측정하는 beta도 있다.
+# beta_n(sigma^2) ≈ 1 - Φ[ Φ^{-1}(1 - alpha) - sqrt(n) * (sigma^2 / kappa) ]
+# sigma^2 = gamma
+
+"""
+| 기호                    | 설명                                                                      |
+| ----------------------- | ----------------------------------------------------------------------- |
+| beta_n(sigma^2)         | 표본 수 $n$일 때, frailty 분산 sigma^2에 대한 검정력 (즉, H₁이 맞을 때 H₀를 기각할 확률) |
+| alpha                   | 유의수준 (보통 0.05 또는 0.01로 설정)                                              |
+| Phi                     | 표준 정규분포의 누적분포함수(CDF)                                                    |
+| Phi^{-1}(1 - alpha)     | 표준 정규분포의 임계값 (예: alpha = 0.05 → 약 1.6449)                               |
+| n                       | 표본 크기 (사망자 수 또는 생존자 수 등)                                                |
+| sigma^2                 | 실제 frailty 분산 값 (귀무가설은 sigma^2 = 0)                                  |
+| kappa                   | fisher 정보행렬에서 sqrt(I^-1(theta)_3,3)                     |
+"""
+
+
+
+from scipy.optimize import differential_evolution, minimize
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
+from scipy.stats import chi2 
+
+Dx = None; Ex = None
+
+# 후보 경로들
+file_path_candidates = [
+    "C:/Users/pc/Desktop/project/65이상 생명표.xlsx",
+    "C:/Users/tw010/Desktop/project/65이상 생명표.xlsx"
+]
+
+# 성공한 경로를 찾기
+file_path = None
+file_path = next((p for p in file_path_candidates if os.path.exists(p)), None)
+
+if file_path is None:
+    raise FileNotFoundError("생명표 파일을 찾을 수 없습니다. 경로를 확인하세요.")
+else:
+    print("경로 연결됨")
+    df = pd.read_excel(file_path, sheet_name="Sheet1")
+
+df_surv = df[df['title'] == '생존자(여자)'] # age 추출용이라 성별 상관없음
+age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
+age = age_raw[:-1].reset_index(drop=True)
+
+
+"""
+해야할 것들 정리
+1. ggm 최대우도 가져오기
+2. gm 최대우도 가져오기
+3. LRT 통계량 계산
+4. 3.을 이용해서 p-value 계산
+5. kappa 계산
+6. beta 계산식
+"""
+def read_excel(sex, year) :
+    # sex 인자에 따라 title 문자열 자동 생성
+    surv_title = f"생존자({sex})"
+    exp_title  = f"정지인구({sex})"
+    # 생존자, 노출 DF 분리
+    df_surv = df[df['title'] == surv_title]
+    df_exp  = df[df['title'] == exp_title]
+    
+    # lx, Ex 불러오기
+    age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
+    lx_raw  = pd.to_numeric(df_surv.get(year, []), errors='coerce')
+    Ex_raw  = pd.to_numeric(df_exp.get(year, []), errors='coerce')
+
+    # 1세 차분으로 Dx 계산
+    age = age_raw[:-1].reset_index(drop=True)
+    lx = lx_raw[:-1].reset_index(drop=True)
+    lx_plus1 = lx_raw[1:].reset_index(drop=True)
+    Ex = Ex_raw[:-1].reset_index(drop=True)
+    Dx = lx - lx_plus1
+
+    # 유효값 필터링
+    valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
+    age = age[valid].reset_index(drop=True).values
+    Dx = Dx[valid].reset_index(drop=True).values
+    Ex = Ex[valid].reset_index(drop=True).values
+    return Dx, Ex
+
+
+def ggm_calc (a, b, gamma, c, age = age) :
+    a = 0.00005671; b = 0.09599161; gamma = 0.09080687; c = 0.00122237
+    log_num = np.log(a) + b * age
+    log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
+    mu = np.exp(log_num - log_denom) + c
+    log_mu = np.log(np.maximum(mu, 1e-10))
+    logL = np.sum(Dx * log_mu - Ex * mu) # 가중치 일단 빼놨음
+
+    return logL
+
+
+# gm 적합
+def neg_log_likelihood_gm(params, age, Dx, Ex):
+    a, b, c = params
+    mu = a * np.exp(b * age) + c
+    mu = np.maximum(mu, 1e-10)  # 로그 안정화
+    logL = np.sum(Dx * np.log(mu) - Ex * mu)
+    return -logL
+
+# GM 적합 함수
+def gm_calc(age, Dx, Ex, bounds=[(1e-7, 0.01), (0.001, 0.2), (0, 0.01)]):
+    # 초기값 설정 (약한 제약 포함)
+    init_params = [1e-5, 0.05, 0.001]
+    
+    result = minimize(
+        fun=neg_log_likelihood_gm,
+        x0=init_params,
+        args=(age, Dx, Ex),
+        bounds=bounds,
+        method='L-BFGS-B'
+    )
+    
+    if result.success:
+        fitted_params = result.x
+        logL_gm = -result.fun
+    return logL_gm    
+
+def compute_p_value_LRT(T, method="chi2"):
+    """
+    LRT 통계량 T에 대한 p-value 계산
+    method:
+      - 'chi2'    : 일반적인 자유도 1의 카이제곱 분포 사용
+      - 'mixture' : Self & Liang (1987) 방식, frailty 분산 검정용
+    """
+    if T <= 0:
+        return 1.0  # 우도차가 음수거나 0이면, 복잡한 모델이 더 나쁨
+
+    if method == "chi2":
+        return 1 - chi2.cdf(T, df=1)
+    elif method == "mixture":
+        return 0.5 * (1 - chi2.cdf(T, df=1))
+    else:
+        raise ValueError("지원하지 않는 method입니다. 'chi2' 또는 'mixture' 중 선택하세요.")
+
+
+# 2001, 남자 ggm 적합결과 : a = 0.00002294, b = 0.10586833, gamma = 0.11240457, c = 0.00108915
+Dx, Ex = read_excel(sex = "남자", year = 2001)
+max_ggm_logL = (-1) * ggm_calc(a = 0.00002294, b = 0.10586833, gamma = 0.11240457, c = 0.00108915)
+max_gm_logL = (-1) * gm_calc(age = age, Dx = Dx, Ex = Ex,)
+LRT_test_statistics = 2 * (max_ggm_logL - max_gm_logL)
+compute_p_value_LRT(LRT_test_statistics)
+

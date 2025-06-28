@@ -23,7 +23,7 @@ else:
     print("경로 연결됨")
     df = pd.read_excel(file_path, sheet_name="Sheet1")
 
-df_surv = df[df['title'] == '생존자(여자)']
+df_surv = df[df['title'] == '생존자(여자)'] # age 추출용이라 성별 상관없음
 age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
 age = age_raw[:-1].reset_index(drop=True)
 
@@ -54,7 +54,7 @@ def weight_rmse(y_obs, y_fit, age, center = 75, scale = 3, max_weight = 10):
 
 def assess_fit_rmse(params, age, Dx, Ex, center = 75, scale = 3, max_weight = 10):
     """
-    모델 파라미터와 age, Dx, Ex를 입력받아 RMSE 평가 (post-screening에 사용)
+    모델 파라미터와 age, Dx, Ex를 입력받아 RMSE 평가
     """
     a, b, gamma, c = params
     log_num = np.log(a) + b * age
