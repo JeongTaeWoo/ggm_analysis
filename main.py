@@ -65,7 +65,7 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #               output_path = "C:/Users/tw010/Desktop/project/적합 결과.csv")
                
                
-# TODO GM 그래프도 같이 띄우고 RMSE 평가치도 바로 나오게끔 하자
+# TODO GM의 최대우도와 비교해봐야 함. 가끔 GGM이 더 작게 나올 때도 있는 것 같음
 
 # TODO 아예 center, scale, max_weight도 랜덤으로 돌려버릴까? 
 # 가장 적합도 좋았던 결과의 모수도 같이 나오게 하면 되잖아
