@@ -23,7 +23,7 @@ else:
     print("경로 연결됨")
     df = pd.read_excel(file_path, sheet_name="Sheet1")
 
-df_surv = df[df['title'] == '생존자(여자)'] # age 추출용이라 성별 상관없음
+df_surv = df[df['title'] == '생존자(남자)'] # age 추출용이라 성별 상관없음
 age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
 age = age_raw[:-1].reset_index(drop=True)
 
@@ -37,7 +37,7 @@ def result_maker(a, b, gamma, c):
     return SimpleResult([a, b, gamma, c])
 
 # TODO weight 여러종류 쓸 꺼면 class도 생각해볼만 함
-def weight_sigmoid(age, center = 75, scale = 3, max_weight = 10):
+def weight_sigmoid(age, center = 90, scale = 3, max_weight = 10):
     """
     중심(center) 기준으로 sigmoid 함수 형태의 가중치를 부여
     center 이후로 점점 가중치가 커짐
@@ -45,14 +45,14 @@ def weight_sigmoid(age, center = 75, scale = 3, max_weight = 10):
     """
     return 1 + (max_weight - 1) / (1 + np.exp(-(age - center) / scale))
 
-def weight_rmse(y_obs, y_fit, age, center = 75, scale = 3, max_weight = 10):
+def weight_rmse(y_obs, y_fit, age, center = 90, scale = 3, max_weight = 10):
     """
     sigmoid 가중치를 기반으로 예측값과 실제값 사이의 오차를 강조하여 계산
     """
     weights = weight_sigmoid(age, center = center, scale = scale, max_weight = max_weight)
     return np.sqrt(np.mean(weights * (y_obs - y_fit)**2))
 
-def assess_fit_rmse(params, age, Dx, Ex, center = 75, scale = 3, max_weight = 10):
+def assess_fit_rmse(params, age, Dx, Ex, center = 90, scale = 3, max_weight = 10):
     """
     모델 파라미터와 age, Dx, Ex를 입력받아 RMSE 평가
     """
@@ -79,7 +79,7 @@ def make_neg_log_likelihood(Dx, Ex, age, weight_func = None, weight_params = Non
         # 일반 MLE
         # logL = np.sum(Dx * np.log(mu) - Ex * mu)
         
-        # 가중치 계산 (기본은 모두 1), Weighted MLE 방법임
+        # 가중치 계산 (기본은 모두 1)
         if weight_func :
             w_params = weight_params if weight_params is not None else {}
             weights = weight_func(age, **w_params)
@@ -137,6 +137,27 @@ def run_optimizer(opt_func, neg_log_likelihood, bounds = None, init_params = Non
         raise ValueError("최적화 함수 오류")
     
 
+# GM 모형
+def neg_log_likelihood_gm(params, age, Dx, Ex):
+    a, b, c = params
+    mu = a * np.exp(b * age) + c
+    mu = np.maximum(mu, 1e-10)  # 로그 안정화
+    logL = np.sum(Dx * np.log(mu) - Ex * mu)
+    return -logL
+
+# GM 적합 함수
+def fit_gm(age, Dx, Ex, bounds=[(1e-7, 0.01), (0.001, 0.2), (0, 0.01)]):
+    # 초기값 설정 (약한 제약 포함)
+    init_params = [1e-4, 0.1, 0.0005]
+    
+    result = minimize(
+        fun = neg_log_likelihood_gm,
+        x0 = init_params,
+        args = (age, Dx, Ex),
+        bounds = bounds,
+        method = 'L-BFGS-B'
+    )
+    return result   
 
 def fit_ggm(age, Dx, Ex, bounds, init_params = None, 
            n = 100, meaningless = True, notice = False,
@@ -145,7 +166,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
            opt_func = "differential_evolution") :
     # 경계 설정
     if bounds is None :
-        bounds = [(0.00001, 0.005), (0.05, 0.3), (0.05, 0.3), (0.0001, 0.05)]
+        bounds = [(0.00001, 0.005), (0.05, 0.3), (0.08, 0.3), (0.0001, 0.05)]
 
     epsilon = 1e-7
     best_result = None
@@ -167,7 +188,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             print(f"{i + 1}번째 시행 최적화 실패: {e}")   
             continue
         
-        if notice == True and (i + 1) % 10000 == 0: 
+        if notice == True and (i + 1) % 500 == 0: 
             print(f"{i + 1}번 시도했어요")
         
         params = result.x
@@ -210,19 +231,26 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
         
     return best_result
 
-def fitted_plot(result, mu_obs) :
-    a, b, gamma, c = result.x
-    fitted_mu, x_star = calc(result, age)
+def fitted_plot(result_ggm, result_gm, mu_obs) :
+    a, b, gamma, c = result_ggm.x
+    fitted_mu_ggm, x_star = calc(result_ggm, age)
+
+    a_gm, b_gm, c_gm = result_gm.x
+    fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
 
     # 시각화
     plt.plot(age, mu_obs, label='Observed', marker='o')
-    plt.plot(age, fitted_mu, label='Fitted', linestyle='--')
+    plt.plot(age, fitted_mu_ggm, label = 'Fitted GGM', linestyle = '--')
+    plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
     plt.xlabel('Age')
     plt.ylabel('Mortality Rate')
     plt.title('Gamma-Gompertz-Makeham Fit')
     plt.legend()
     plt.grid(True)
     plt.show()
+
+    print("GGM 로그우도:", result_ggm.fun)
+    print("GM 로그우도 :", result_gm.fun)
     
     print("추정 결과:")
     print(f"a     = {a:.8f}")
@@ -321,7 +349,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     df_out.to_csv(output_path, index=False, encoding = 'utf-8-sig')
     print(f"Results saved to {output_path}")        
     
-   
+    
     
 def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True,
              center = 80, scale = 3, max_weight = 5, threshold = 0.005,
@@ -359,15 +387,15 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                        'max_weight' : max_weight, 'rmse_threshold' : threshold}
     
     # GGM 적합
-    result = fit_ggm(age, Dx, Ex, n = trial, notice = True, bounds = None,
+    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = True, bounds = None,
                         weight_func = weight_func, 
                         weight_params = weight_params,
                         use_rmse_filter = use_rmse_filter,
                         rmse_filter_params = function_params,
                         opt_func = opt_func)
-    if result and result.success:
-        a, b, gamma, c = result.x
-        fitted_mu, x_star = calc(result, age)
+    if result_ggm and result_ggm.success:
+        a, b, gamma, c = result_ggm.x
+        fitted_mu, x_star = calc(result_ggm, age)
         
         
     # 결과 레코드 생성
@@ -380,8 +408,10 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         base[f'fitted_ggm_{int(age_val)}'] = fitted_mu[idx]
     records.append(base)
     df_out = pd.DataFrame.from_records(records)
+
+    result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
     
-    fitted_plot(result, observed_mu)
+    fitted_plot(result_ggm, result_gm, observed_mu)
     
     if result_path is not None :
         replace_result_for_year(year = year, sex = "여자", new_row = df_out,

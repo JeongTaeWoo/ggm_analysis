@@ -189,21 +189,11 @@ def compute_kappa(theta_hat, age, gamma_index = 2):
     kappa = np.sqrt(kappa_squared)
     return kappa
 
-def ggm_calc_v2 (a,b,gamma,c, age = age) :
-    log_num = np.log(a) + b * age
-    log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
-    mu = np.exp(log_num - log_denom) + c
-    log_mu = np.log(np.maximum(mu, 1e-100))
-    logL = np.sum(Dx * log_mu - Ex * mu) # 가중치 일단 빼놨음
-
-    return logL
-
-
 # 2001, 남자 ggm 적합결과 : a = 0.00002294, b = 0.10586833, gamma = 0.11240457, c = 0.00108915 (0.00002355, 0.10554539, 0.11169777, 0.00102811)
 Dx, Ex = read_excel(sex = "남자", year = 2001)
 
-params_ggm = (0.00002355, 0.10554539, 0.11169777, 0.00102811) # (a, b, gamma, c)
-max_ggm_logL = (-1) * ggm_calc_v2(a =0.00002294, b=0.10586833,gamma = 0.11240457, c=0.00108915)
+params_ggm = (0.00002764, 0.10355978, 0.10113280, 0.00039967) # (a, b, gamma, c)
+max_ggm_logL = (-1) * ggm_calc(params = params_ggm)
 max_gm_logL = (-1) * gm_calc(age = age, Dx = Dx, Ex = Ex)
 summarize_LRT(max_ggm_logL, max_gm_logL)
 kappa = compute_kappa(theta_hat = params_ggm, age = age)
