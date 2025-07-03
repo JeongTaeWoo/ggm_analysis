@@ -85,7 +85,7 @@ def make_neg_log_likelihood(Dx, Ex, age, weight_func = None, weight_params = Non
             weights = weight_func(age, **w_params)
         else:
             weights = np.ones_like(age)
-       
+        
         # 가중 로그우도 계산
         log_mu = np.log(np.maximum(mu, 1e-10))
         logL = np.sum(weights * (Dx * log_mu - Ex * mu))
@@ -130,7 +130,6 @@ def run_optimizer(opt_func, neg_log_likelihood, bounds = None, init_params = Non
                 'method' : 'L-BFGS-B'
             }
             #,x0 = [0.0001, 0.1, 0.08, 0.0005]
-
         )
     
     else:
@@ -160,13 +159,13 @@ def fit_gm(age, Dx, Ex, bounds=[(0.000005, 0.0001), (0.05, 0.2), (0.00005, 0.01)
     return result   
 
 def fit_ggm(age, Dx, Ex, bounds, init_params = None, 
-           n = 100, meaningless = True, notice = False,
-           weight_func = None, weight_params = None,
-           use_rmse_filter = False, rmse_filter_params = None,
-           opt_func = "differential_evolution") :
+            n = 100, meaningless = True, notice = False,
+            weight_func = None, weight_params = None,
+            use_rmse_filter = False, rmse_filter_params = None,
+            opt_func = "differential_evolution") :
     # 경계 설정
     if bounds is None :
-        bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.09, 0.2), (0.00001, 0.05)]
+        bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.08, 0.2), (0.00001, 0.05)]
 
     epsilon = 1e-7
     best_result = None
@@ -174,16 +173,20 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     no_improve_count = 0
     boundary_issue_count = 0
     rmse_issue_count = 0
+    logL_issue_count = 0
+
+    result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
+    logL_gm = -result_gm.fun
     
     neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, 
-                                                 weight_func = weight_func,
-                                                 weight_params = weight_params)
+                                                weight_func = weight_func,
+                                                weight_params = weight_params)
     
     for i in range(n) :
             
         try :
             result = run_optimizer(opt_func, neg_log_likelihood,
-                                   bounds, init_params)    
+                                    bounds, init_params)    
         except Exception as e :
             print(f"{i + 1}번째 시행 최적화 실패: {e}")   
             continue
@@ -192,6 +195,13 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             print(f"{i + 1}번 시도했어요")
         
         params = result.x
+        neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
+        logL_ggm_pure = -neg_log_likelihood_pure(result.x)
+        
+        if logL_ggm_pure < logL_gm :
+            print("logL_ggm = ", logL_ggm_pure); print("logL_gm = ", logL_gm)
+            logL_issue_count += 1
+            continue
 
         # 경계에 걸렸는지 확인
         at_boundary = any(
@@ -203,8 +213,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             boundary_issue_count += 1
             continue  
         
-        if result.success and result.fun < best_nll :
-            
+        if result.fun < best_nll :
             if use_rmse_filter :
                 filter_params = rmse_filter_params if rmse_filter_params is not None else {}
                 rmse_threshold = filter_params.pop('rmse_threshold', 0.05)
@@ -225,10 +234,10 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
         if meaningless and no_improve_count >= 500: 
             print(f"{i + 1}번째에서 500번 연속 개선 없음 → 종료")
             break
-        
+    print(f"logL issue {logL_issue_count}회 발생")    
     print(f"Boundary issue {boundary_issue_count}회 발생")
     print(f"RMSE issue {rmse_issue_count}회 발생")
-        
+    
     return best_result
 
 def fitted_plot(result_ggm, result_gm, mu_obs, logL_ggm = None) :
@@ -277,9 +286,9 @@ def calc(result, age) :
     return fitted_mu, x_star
     
 def run_batch(years, sex, df, output_path, trial = 100, 
-              use_weights = True, use_rmse_filter = True,
-              center = 80, scale = 3, max_weight = 5, threshold = 0.005,
-              opt_func = "differential_evolution") :
+            use_weights = True, use_rmse_filter = True,
+            center = 80, scale = 3, max_weight = 5, threshold = 0.005,
+            opt_func = "differential_evolution") :
     """
    여러 연도와 성별에 대해 GGM과 GM 모델을 적합하고 결과를 CSV로 저장
 
@@ -303,14 +312,14 @@ def run_batch(years, sex, df, output_path, trial = 100,
         age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
         lx_raw  = pd.to_numeric(df_surv.get(year, []), errors='coerce')
         Ex_raw  = pd.to_numeric(df_exp.get(year, []), errors='coerce')
-   
+    
         # 1세 차분으로 Dx 계산
         age = age_raw[:-1].reset_index(drop=True)
         lx = lx_raw[:-1].reset_index(drop=True)
         lx_plus1 = lx_raw[1:].reset_index(drop=True)
         Ex = Ex_raw[:-1].reset_index(drop=True)
         Dx = lx - lx_plus1
-   
+    
         # 유효값 필터링
         valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
         age = age[valid].reset_index(drop=True).values
@@ -320,7 +329,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
         weight_func = weight_sigmoid if use_weights else None
         weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
         function_params = {'center' : center, 'scale' : scale, 
-                           'max_weight' : max_weight, 'rmse_threshold' : threshold}
+                            'max_weight' : max_weight, 'rmse_threshold' : threshold}
         
         # GGM 적합
         result = fit_ggm(age, Dx, Ex, n = trial, notice = True, 
@@ -352,8 +361,8 @@ def run_batch(years, sex, df, output_path, trial = 100,
     
     
 def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True,
-             center = 80, scale = 3, max_weight = 5, threshold = 0.005,
-             result_path = None, opt_func = "differential_evolution") :
+            center = 80, scale = 3, max_weight = 5, threshold = 0.005,
+            result_path = None, opt_func = "differential_evolution") :
     records = []
     # sex 인자에 따라 title 문자열 자동 생성
     surv_title = f"생존자({sex})"
@@ -384,7 +393,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
     weight_func = weight_sigmoid if use_weights else None
     weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
     function_params = {'center' : center, 'scale' : scale, 
-                       'max_weight' : max_weight, 'rmse_threshold' : threshold}
+                        'max_weight' : max_weight, 'rmse_threshold' : threshold}
     
     # GGM 적합
     result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = True, bounds = None,
@@ -410,8 +419,8 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
     df_out = pd.DataFrame.from_records(records)
 
     # weight 없는 순수 logL 계산
-    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func=None)
-    logL_ggm_pure = neg_log_likelihood_pure(result_ggm.x)
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
+    logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
     
     # GM 결과 생성
     result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
@@ -421,7 +430,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
     if result_path is not None :
         replace_result_for_year(year = year, sex = "여자", new_row = df_out,
                                 result_path = result_path)
-   
+    
 def replace_result_for_year(year, sex, new_row, result_path):
     """
     기존 결과 파일에서 특정 연도(year), 성별(sex)의 결과만 새로 교체함

@@ -20,7 +20,6 @@ else:
     df = pd.read_excel(file_path, sheet_name="Sheet1")
 
 output_path = "C:/Users/pc/Desktop/project/적합 결과.csv"
-df = pd.read_excel(file_path, sheet_name="Sheet1")
 
 
 df_surv = df[df['title'] == '생존자(남자)']
@@ -65,16 +64,15 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #               output_path = "C:/Users/tw010/Desktop/project/적합 결과.csv")
                
                
-# TODO GM의 최대우도와 비교해봐야 함. 가끔 GGM이 더 작게 나올 때도 있는 것 같음
 
 # TODO 아예 center, scale, max_weight도 랜덤으로 돌려버릴까? 
 # 가장 적합도 좋았던 결과의 모수도 같이 나오게 하면 되잖아
 #func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
 #              center = 90, scale = 3, max_weight = 10)
 
-func.run_test(year = 1975, sex = '여자', df = df, trial = 1000, use_weights = True,
-              center = 91, scale = 2, max_weight = 20, result_path = None,
-              opt_func = "differential_evolution")
+func.run_test(year = 2001, sex = '남자', df = df, trial = 100, use_weights = True,
+            center = 91, scale = 2, max_weight = 20, result_path = None,
+            opt_func = "differential_evolution")
 
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
