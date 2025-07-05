@@ -1,3 +1,4 @@
+import random
 from scipy.optimize import differential_evolution, minimize, dual_annealing
 import numpy as np
 import pandas as pd
@@ -191,7 +192,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             print(f"{i + 1}번째 시행 최적화 실패: {e}")   
             continue
         
-        if notice == True and (i + 1) % 500 == 0: 
+        if notice and (i + 1) % 500 == 0 : 
             print(f"{i + 1}번 시도했어요")
         
         params = result.x
@@ -233,9 +234,11 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
         if meaningless and no_improve_count >= 500: 
             print(f"{i + 1}번째에서 500번 연속 개선 없음 → 종료")
             break
-    print(f"logL issue {logL_issue_count}회 발생")    
-    print(f"Boundary issue {boundary_issue_count}회 발생")
-    print(f"RMSE issue {rmse_issue_count}회 발생")
+    
+    if notice :
+        print(f"logL issue {logL_issue_count}회 발생")    
+        print(f"Boundary issue {boundary_issue_count}회 발생")
+        print(f"RMSE issue {rmse_issue_count}회 발생")
     
     return best_result
 
@@ -257,16 +260,7 @@ def fitted_plot(result_ggm, result_gm, mu_obs, logL_ggm = None) :
     plt.grid(True)
     plt.show()
 
-    print("GGM 로그우도:", logL_ggm if logL_ggm is not None else result_ggm.fun)
-    print("GM 로그우도 :", -result_gm.fun)
     
-    print("추정 결과:")
-    print(f"a     = {a:.8f}")
-    print(f"b     = {b:.8f}")
-    print(f"gamma = {gamma:.8f}")
-    print(f"c     = {c:.8f}")
-    
-    print("추정된 감속 나이 x* =", round(x_star, 2), "세")
     
 def calc(result, age) :
     a, b, gamma, c = result.x
@@ -289,13 +283,13 @@ def run_batch(years, sex, df, output_path, trial = 100,
             center = 80, scale = 3, max_weight = 5, threshold = 0.005,
             opt_func = "differential_evolution") :
     """
-   여러 연도와 성별에 대해 GGM과 GM 모델을 적합하고 결과를 CSV로 저장
+    여러 연도와 성별에 대해 GGM과 GM 모델을 적합하고 결과를 CSV로 저장
 
-   Parameters:
-     years: iterable of int
-     sex: '남자' or '여자' or '전체'
-     output_path: 결과 CSV 경로
-   """
+    Parameters:
+        years: iterable of int
+        sex: '남자' or '여자' or '전체'
+        output_path: 결과 CSV 경로
+    """
     records = []
     
     # sex 인자에 따라 title 문자열 자동 생성
@@ -359,8 +353,8 @@ def run_batch(years, sex, df, output_path, trial = 100,
     
     
     
-def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True,
-            center = 80, scale = 3, max_weight = 5, threshold = 0.005,
+def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice = True,
+            center = 80, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
             result_path = None, opt_func = "differential_evolution") :
     records = []
     # sex 인자에 따라 title 문자열 자동 생성
@@ -395,7 +389,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                         'max_weight' : max_weight, 'rmse_threshold' : threshold}
     
     # GGM 적합
-    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = True, bounds = None,
+    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = notice, bounds = None,
                         weight_func = weight_func, 
                         weight_params = weight_params,
                         use_rmse_filter = use_rmse_filter,
@@ -405,30 +399,44 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         a, b, gamma, c = result_ggm.x
         fitted_mu, x_star = calc(result_ggm, age)
         
-        
-    # 결과 레코드 생성
-    base = {'sex': sex,
+    if result_path is not None :
+        # 결과 레코드 생성
+        base = {
+            'sex': sex,
             'year': year,
             'a': a, 'b': b, 'gamma': gamma, 'c': c, 
             'x*': x_star}
     
-    for idx, age_val in enumerate(age):
-        base[f'fitted_ggm_{int(age_val)}'] = fitted_mu[idx]
-    records.append(base)
-    df_out = pd.DataFrame.from_records(records)
-
+        for idx, age_val in enumerate(age):
+            base[f'fitted_ggm_{int(age_val)}'] = fitted_mu[idx]
+        records.append(base)
+        df_out = pd.DataFrame.from_records(records)
+        replace_result_for_year(year = year, sex = sex, new_row = df_out,
+                                result_path = result_path)
+    
     # weight 없는 순수 logL 계산
     neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
     logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
     
     # GM 결과 생성
     result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
+
+    if notice : 
+        print("GGM 로그우도 :", logL_ggm_pure)
+        print("GM 로그우도 :", -result_gm.fun)
+        
+        print("추정 결과:")
+        print(f"a     = {a:.8f}")
+        print(f"b     = {b:.8f}")
+        print(f"gamma = {gamma:.8f}")
+        print(f"c     = {c:.8f}")
+        
+        print("추정된 감속 나이 x* =", round(x_star, 2), "세")
     
-    fitted_plot(result_ggm, result_gm, observed_mu, logL_ggm_pure)
+    if show_graph :
+        fitted_plot(result_ggm, result_gm, observed_mu, logL_ggm_pure)
     
-    if result_path is not None :
-        replace_result_for_year(year = year, sex = "여자", new_row = df_out,
-                                result_path = result_path)
+    return logL_ggm_pure
     
 def replace_result_for_year(year, sex, new_row, result_path):
     """
@@ -459,7 +467,7 @@ def replace_result_for_year(year, sex, new_row, result_path):
         df_to_add = pd.DataFrame([new_row.to_dict()])
     else:
         raise ValueError(f"Unsupported type for new_row: {type(new_row)}. "
-                         "Expect dict, Series, or DataFrame.")
+                        "Expect dict, Series, or DataFrame.")
     # 병합: 기존 df_all과 새로운 df_to_add를 합침
     df_all = pd.concat([df_all, df_to_add], ignore_index=True)
     # 정렬
@@ -468,7 +476,7 @@ def replace_result_for_year(year, sex, new_row, result_path):
     # 저장
     df_all.to_csv(result_path, index=False, encoding='utf-8-sig')
     print(f"{year}년 {sex} 결과가 갱신되었습니다 → {result_path}")
-   
+    
     
 def draw_LAR (params, age = age):
     a, b, gamma, c = params
@@ -494,4 +502,42 @@ def draw_LAR (params, age = age):
     plt.grid(True)
     plt.show()
     
-    
+def find_best_scale (year, sex, trial,
+                    center_range, scale_range, max_weight_range,
+                    n_runs = 30) :
+    best_logL = -np.inf
+    best_params = {}
+
+    center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
+    scale_candidates = [round(x, 1) for x in np.arange(*scale_range)]
+    max_weight_candidates = list(range(max_weight_range[0], max_weight_range[1] + 1, max_weight_range[2]))
+
+    for i in range(n_runs) :
+        center = random.choice(center_candidates)
+        scale = random.choice(scale_candidates)
+        max_weight = random.choice(max_weight_candidates)
+        
+        try:
+            logL_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
+                                center = center, scale = scale, max_weight = max_weight,
+                                show_graph = False)
+        except Exception as e:
+            print(f"실패: {e}")
+            continue
+        
+        if logL_ggm > best_logL :
+            best_logL = logL_ggm
+            best_params = {
+                "center": center,
+                "scale": scale,
+                "max_weight": max_weight
+            }
+
+    print(f"최고 로그우도 (logL_ggm_pure): {best_logL}")
+    print("최적 scale:")
+    print(f"center     = {best_params['center']}")
+    print(f"scale      = {best_params['scale']}")
+    print(f"max_weight = {best_params['max_weight']}")
+
+# TODO 최적의 scale과 그때 얻은 params도 같이 나오게 하기
+# TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음

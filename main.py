@@ -70,9 +70,12 @@ init_params = (0.00005,	0.1, 0.1, 0.0001)
 #func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
 #              center = 90, scale = 3, max_weight = 10)
 
-func.run_test(year = 2022, sex = '남자', df = df, trial = 1000, use_weights = True,
-            center = 91, scale = 2, max_weight = 20, result_path = None,
-            opt_func = "differential_evolution")
+#func.run_test(year = 2022, sex = '남자', df = df, trial = 1500, use_weights = True, notice = True,
+#            center = 91, scale = 2, max_weight = 20, result_path = None,
+#            opt_func = "differential_evolution")
+
+func.find_best_scale(year = 2001, sex = "남자", trial = 20, 
+                    center_range = (85, 95, 1), scale_range = (1.0, 10.0, 0.5), max_weight_range = (2, 20, 1), n_runs = 2)
 
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
