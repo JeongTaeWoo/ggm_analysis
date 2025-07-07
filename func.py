@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
+from tqdm import trange
 
-
+age = np.arange(65, 100, dtype=float)  # 65세부터 99세까지 기본값 설정
 Dx = None; Ex = None
 
 # 후보 경로들
@@ -24,10 +25,40 @@ else:
     print("경로 연결됨")
     df = pd.read_excel(file_path, sheet_name="Sheet1")
 
-df_surv = df[df['title'] == '생존자(남자)'] # age 추출용이라 성별 상관없음
-age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
-age = age_raw[:-1].reset_index(drop=True)
 
+
+def load_excel(year, sex, df = df) :
+    df_surv = df[df['title'] == '생존자(남자)'] # age 추출용이라 성별 상관없음
+    age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
+    age = age_raw[:-1].reset_index(drop=True)
+
+    # sex 인자에 따라 title 문자열 자동 생성
+    surv_title = f"생존자({sex})"
+    exp_title  = f"정지인구({sex})"
+    # 생존자, 노출 DF 분리
+    df_surv = df[df['title'] == surv_title]
+    df_exp  = df[df['title'] == exp_title]
+    
+    # lx, Ex 불러오기
+    age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
+    lx_raw  = pd.to_numeric(df_surv.get(year, []), errors='coerce')
+    Ex_raw  = pd.to_numeric(df_exp.get(year, []), errors='coerce')
+
+    # 1세 차분으로 Dx 계산
+    age = age_raw[:-1].reset_index(drop=True)
+    lx = lx_raw[:-1].reset_index(drop=True)
+    lx_plus1 = lx_raw[1:].reset_index(drop=True)
+    Ex = Ex_raw[:-1].reset_index(drop=True)
+    Dx = lx - lx_plus1
+
+    # 유효값 필터링
+    valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
+    age = age[valid].reset_index(drop=True).values
+    Dx = Dx[valid].reset_index(drop=True).values
+    Ex = Ex[valid].reset_index(drop=True).values
+    observed_mu = Dx/Ex
+    
+    return Dx, Ex, age, observed_mu
 
 # --- result 형태 생성 함수 ---
 class SimpleResult:
@@ -179,7 +210,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
     logL_gm = -result_gm.fun
     
-    neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, 
+    neg_log_likelihood = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, 
                                                 weight_func = weight_func,
                                                 weight_params = weight_params)
     
@@ -196,7 +227,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             print(f"{i + 1}번 시도했어요")
         
         params = result.x
-        neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
+        neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
         logL_ggm_pure = -neg_log_likelihood_pure(result.x)
         
         if logL_ggm_pure < logL_gm :
@@ -242,10 +273,8 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     
     return best_result
 
-def fitted_plot(result_ggm, result_gm, mu_obs, logL_ggm = None) :
-    a, b, gamma, c = result_ggm.x
+def fitted_plot(result_ggm, result_gm, mu_obs) :
     fitted_mu_ggm, x_star = calc(result_ggm, age)
-
     a_gm, b_gm, c_gm = result_gm.x
     fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
 
@@ -260,8 +289,7 @@ def fitted_plot(result_ggm, result_gm, mu_obs, logL_ggm = None) :
     plt.grid(True)
     plt.show()
 
-    
-    
+
 def calc(result, age) :
     a, b, gamma, c = result.x
     log_num = np.log(a) + b * age
@@ -292,32 +320,10 @@ def run_batch(years, sex, df, output_path, trial = 100,
     """
     records = []
     
-    # sex 인자에 따라 title 문자열 자동 생성
-    surv_title = f"생존자({sex})"
-    exp_title  = f"정지인구({sex})"
-    # 생존자, 노출 DF 분리
-    df_surv = df[df['title'] == surv_title]
-    df_exp  = df[df['title'] == exp_title]
-    
     for year in years:
         # 연도별 lx, Ex 불러오기
         print(f"{year}년 시작")
-        age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
-        lx_raw  = pd.to_numeric(df_surv.get(year, []), errors='coerce')
-        Ex_raw  = pd.to_numeric(df_exp.get(year, []), errors='coerce')
-    
-        # 1세 차분으로 Dx 계산
-        age = age_raw[:-1].reset_index(drop=True)
-        lx = lx_raw[:-1].reset_index(drop=True)
-        lx_plus1 = lx_raw[1:].reset_index(drop=True)
-        Ex = Ex_raw[:-1].reset_index(drop=True)
-        Dx = lx - lx_plus1
-    
-        # 유효값 필터링
-        valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
-        age = age[valid].reset_index(drop=True).values
-        Dx = Dx[valid].reset_index(drop=True).values
-        Ex = Ex[valid].reset_index(drop=True).values
+        Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
         
         weight_func = weight_sigmoid if use_weights else None
         weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -331,10 +337,10 @@ def run_batch(years, sex, df, output_path, trial = 100,
                             use_rmse_filter = use_rmse_filter, 
                             rmse_filter_params = function_params,
                             opt_func = opt_func)
+        
         if result and result.success:
             a, b, gamma, c = result.x
             fitted_mu, x_star = calc(result, age)
-            
             
         # 결과 레코드 생성
         base = {'sex': sex,
@@ -352,36 +358,11 @@ def run_batch(years, sex, df, output_path, trial = 100,
     print(f"Results saved to {output_path}")        
     
     
-    
 def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice = True,
             center = 80, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
             result_path = None, opt_func = "differential_evolution") :
     records = []
-    # sex 인자에 따라 title 문자열 자동 생성
-    surv_title = f"생존자({sex})"
-    exp_title  = f"정지인구({sex})"
-    # 생존자, 노출 DF 분리
-    df_surv = df[df['title'] == surv_title]
-    df_exp  = df[df['title'] == exp_title]
-    
-    # 연도별 lx, Ex 불러오기
-    age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
-    lx_raw  = pd.to_numeric(df_surv.get(year, []), errors='coerce')
-    Ex_raw  = pd.to_numeric(df_exp.get(year, []), errors='coerce')
-    
-    # 1세 차분으로 Dx 계산
-    age = age_raw[:-1].reset_index(drop=True)
-    lx = lx_raw[:-1].reset_index(drop=True)
-    lx_plus1 = lx_raw[1:].reset_index(drop=True)
-    Ex = Ex_raw[:-1].reset_index(drop=True)
-    Dx = lx - lx_plus1
-    
-    # 유효값 필터링
-    valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
-    age = age[valid].reset_index(drop=True).values
-    Dx = Dx[valid].reset_index(drop=True).values
-    Ex = Ex[valid].reset_index(drop=True).values
-    observed_mu = Dx/Ex
+    Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
     
     weight_func = weight_sigmoid if use_weights else None
     weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -415,7 +396,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                                 result_path = result_path)
     
     # weight 없는 순수 logL 계산
-    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
     logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
     
     # GM 결과 생성
@@ -426,17 +407,17 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         print("GM 로그우도 :", -result_gm.fun)
         
         print("추정 결과:")
-        print(f"a     = {a:.8f}")
-        print(f"b     = {b:.8f}")
-        print(f"gamma = {gamma:.8f}")
-        print(f"c     = {c:.8f}")
+        print(f"a     = {a:.15f}")
+        print(f"b     = {b:.15f}")
+        print(f"gamma = {gamma:.15f}")
+        print(f"c     = {c:.15f}")
         
         print("추정된 감속 나이 x* =", round(x_star, 2), "세")
     
     if show_graph :
-        fitted_plot(result_ggm, result_gm, observed_mu, logL_ggm_pure)
+        fitted_plot(result_ggm, result_gm, observed_mu)
     
-    return logL_ggm_pure
+    return result_ggm
     
 def replace_result_for_year(year, sex, new_row, result_path):
     """
@@ -478,7 +459,7 @@ def replace_result_for_year(year, sex, new_row, result_path):
     print(f"{year}년 {sex} 결과가 갱신되었습니다 → {result_path}")
     
     
-def draw_LAR (params, age = age):
+def draw_LAR (params, age):
     a, b, gamma, c = params
     log_num = np.log(a) + b * age
     log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
@@ -503,41 +484,54 @@ def draw_LAR (params, age = age):
     plt.show()
     
 def find_best_scale (year, sex, trial,
-                    center_range, scale_range, max_weight_range,
-                    n_runs = 30) :
-    best_logL = -np.inf
-    best_params = {}
+                    center_range, scale_range, max_weight_range, best_logL = None,
+                    n_runs = 30, Dx = None, Ex = None, age = None) :
+    
+    if best_logL is None : best_logL =  -np.inf
+    best_result = None
 
     center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
     scale_candidates = [round(x, 1) for x in np.arange(*scale_range)]
     max_weight_candidates = list(range(max_weight_range[0], max_weight_range[1] + 1, max_weight_range[2]))
 
-    for i in range(n_runs) :
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
+    for i in trange(n_runs, desc=f"Searching best scale for {year} {sex}"):
         center = random.choice(center_candidates)
         scale = random.choice(scale_candidates)
         max_weight = random.choice(max_weight_candidates)
         
         try:
-            logL_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
+            result_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
                                 center = center, scale = scale, max_weight = max_weight,
                                 show_graph = False)
         except Exception as e:
             print(f"실패: {e}")
             continue
         
-        if logL_ggm > best_logL :
-            best_logL = logL_ggm
-            best_params = {
+        logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
+
+        if logL_ggm_pure > best_logL :
+            best_logL = logL_ggm_pure
+            best_scale_params = {
                 "center": center,
                 "scale": scale,
                 "max_weight": max_weight
             }
+            best_result = result_ggm
+            a_best, b_best, gamma_best, c_best = best_result.x             
 
-    print(f"최고 로그우도 (logL_ggm_pure): {best_logL}")
+        if (i + 1) % 50 == 0 :
+            print(i+1,"회 시도함")    
+
+    print(f"최고 로그우도 : {best_logL}")
     print("최적 scale:")
-    print(f"center     = {best_params['center']}")
-    print(f"scale      = {best_params['scale']}")
-    print(f"max_weight = {best_params['max_weight']}")
+    print(f"center     = {best_scale_params['center']}")
+    print(f"scale      = {best_scale_params['scale']}")
+    print(f"max_weight = {best_scale_params['max_weight']}")
+    print("---------------------------")
+    print(f"a     = {a_best:.8f}")
+    print(f"b     = {b_best:.8f}")
+    print(f"gamma = {gamma_best:.8f}")
+    print(f"c     = {c_best:.8f}")
 
-# TODO 최적의 scale과 그때 얻은 params도 같이 나오게 하기
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음

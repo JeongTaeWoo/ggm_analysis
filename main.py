@@ -22,65 +22,33 @@ else:
 output_path = "C:/Users/pc/Desktop/project/적합 결과.csv"
 
 
-df_surv = df[df['title'] == '생존자(남자)']
-age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
-age = age_raw[:-1].reset_index(drop=True)
-
-
-df_exp = df[df['title'] == '정지인구(남자)']
-
-year = 1970
-
-lx_raw = pd.to_numeric(df_surv[year], errors='coerce')
-Ex_raw = pd.to_numeric(df_exp[year], errors='coerce')
-
-lx = lx_raw[:-1].reset_index(drop=True)
-lx_plus1 = lx_raw[1:].reset_index(drop=True)
-Ex = Ex_raw[:-1].reset_index(drop=True)
-Dx = lx - lx_plus1
-
-
-# 유효한 값만 필터링
-valid = (~Dx.isna()) & (~Ex.isna()) & (Dx >= 0) & (Ex > 0)
-age = age[valid].reset_index(drop=True)
-Dx = Dx[valid].reset_index(drop=True)
-Ex = Ex[valid].reset_index(drop=True)
-
-func.age = age; func.Dx = Dx; func.Ex = Ex
-
-mu_obs = Dx / Ex
-
-init_params = (0.00005,	0.1, 0.1, 0.0001)
-#result = func.fit_ggm_mle(age, Dx, Ex, mu_obs, init_params)
-#func.fitted_plot(result, mu_obs)
-#func.draw_LAR(params = init_params)
-
-#func.gm_mle_fit(age, Dx, Ex, mu_obs)
+Dx, Ex, age, observed_mu = func.load_excel(year = 2021, sex = "남자")
 
 
 #func.run_batch(years = range(1990, 2021), #전체 범위는 (1970, 2024)
 #               sex = '여자', df = df, trial = 200,
 #               center = 80, scale = 3, max_weight = 5,
 #               output_path = "C:/Users/tw010/Desktop/project/적합 결과.csv")
-               
-               
 
-# TODO 아예 center, scale, max_weight도 랜덤으로 돌려버릴까? 
-# 가장 적합도 좋았던 결과의 모수도 같이 나오게 하면 되잖아
-#func.run_test(year = 2018, sex = '남자', df = df, trial = 100, 
-#              center = 90, scale = 3, max_weight = 10)
 
-#func.run_test(year = 2022, sex = '남자', df = df, trial = 1500, use_weights = True, notice = True,
-#            center = 91, scale = 2, max_weight = 20, result_path = None,
+
+#func.run_test(year = 2001, sex = '남자', df = df, trial = 1500, use_weights = True, notice = True,
+#            center = 89, scale = 1, max_weight = 19, result_path = None,
 #            opt_func = "differential_evolution")
 
-func.find_best_scale(year = 2001, sex = "남자", trial = 20, 
-                    center_range = (85, 95, 1), scale_range = (1.0, 10.0, 0.5), max_weight_range = (2, 20, 1), n_runs = 2)
-
+# TODO load_excel의 year랑 find_best_scale의 year이 같은지 판별할수 있나??
+func.find_best_scale(year = 2021, sex = "남자", trial = 200, 
+                    center_range = (85, 96, 1), scale_range = (1.0, 10.0, 0.5), max_weight_range = (2, 20, 1), n_runs = 100,
+                    Dx = Dx, Ex = Ex, age = age)
+#2001년 남자는 89, 1, 19
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
 #func.fitted_plot(result, mu_obs)
 
+#neg_log_likelihood_pure = func.make_neg_log_likelihood(Dx, Ex, age, weight_func = None)
+#params = (0.00002811,0.10332199,0.10251986,0.00081814)
+#logL_ggm_pure = -neg_log_likelihood_pure(params)
+#print(logL_ggm_pure)
 
 """
 opt_func 목록
