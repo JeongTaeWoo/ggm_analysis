@@ -520,18 +520,15 @@ def find_best_scale (year, sex, trial,
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x             
 
-        if (i + 1) % 50 == 0 :
-            print(i+1,"회 시도함")    
-
     print(f"최고 로그우도 : {best_logL}")
     print("최적 scale:")
     print(f"center     = {best_scale_params['center']}")
     print(f"scale      = {best_scale_params['scale']}")
     print(f"max_weight = {best_scale_params['max_weight']}")
     print("---------------------------")
-    print(f"a     = {a_best:.8f}")
-    print(f"b     = {b_best:.8f}")
-    print(f"gamma = {gamma_best:.8f}")
-    print(f"c     = {c_best:.8f}")
+    print(f"a     = {a_best:.10f}")
+    print(f"b     = {b_best:.10f}")
+    print(f"gamma = {gamma_best:.10f}")
+    print(f"c     = {c_best:.10f}")
 
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
