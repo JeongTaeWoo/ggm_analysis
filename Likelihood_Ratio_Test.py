@@ -127,16 +127,16 @@ def gm_calc(age, Dx, Ex, bounds=[(1e-7, 0.01), (0.001, 0.2), (0, 0.01)]):
         logL_gm = -result.fun
     return logL_gm    
 
-def compute_LRT_stat(loglike_alt, loglike_null):
-    T = 2 * (loglike_alt - loglike_null) #3.84보다 크면 p < 0.05로 기각 가능
+def compute_LRT_stat(logL_alt, logL_null):
+    T = 2 * (logL_alt - logL_null) #3.84보다 크면 p < 0.05로 기각 가능
     return T
 
 def compute_p_value_LRT(T, method="chi2"):
     """
     LRT 통계량 T에 대한 p-value 계산
     method:
-      - 'chi2'    : 일반적인 자유도 1의 카이제곱 분포 사용
-      - 'mixture' : Self & Liang (1987) 방식, frailty 분산 검정용
+    - 'chi2'    : 일반적인 자유도 1의 카이제곱 분포 사용
+    - 'mixture' : Self & Liang (1987) 방식, frailty 분산 검정용
     """
     if T <= 0:
         return 1.0  # 우도차가 음수거나 0이면, 복잡한 모델이 더 나쁨
@@ -154,12 +154,12 @@ def compute_power(n, gamma, kappa, alpha = 0.05):
     print("검정력:",100 * power,"%")
     return power
 
-def summarize_LRT(loglike_alt, loglike_null, method = "chi2"):
-    T = compute_LRT_stat(loglike_alt, loglike_null)
+def summarize_LRT(logL_alt, logL_null, method = "chi2"):
+    T = compute_LRT_stat(logL_alt, logL_null)
     p = compute_p_value_LRT(T, method=method)
     print("[LRT 결과 요약]")
-    print(f"- 로그우도 (GGM): {loglike_alt:.4f}")
-    print(f"- 로그우도 (GM): {loglike_null:.4f}")
+    print(f"- 로그우도 (GGM): {logL_alt:.4f}")
+    print(f"- 로그우도 (GM): {logL_null:.4f}")
     print(f"- 검정통계량 T: {T:.4f}")
     print(f"- p-value ({method}): {p:.5f}")
     if p > 0.1:

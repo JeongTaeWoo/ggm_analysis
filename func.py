@@ -58,7 +58,7 @@ def load_excel(year, sex, df = df) :
     Ex = Ex[valid].reset_index(drop=True).values
     observed_mu = Dx/Ex
     
-    return Dx, Ex, age, observed_mu
+    return year, sex, Dx, Ex, age, observed_mu
 
 # --- result 형태 생성 함수 ---
 class SimpleResult:
