@@ -22,7 +22,7 @@ else:
 output_path = "C:/Users/pc/Desktop/project/적합 결과.csv"
 
 
-Dx, Ex, age, observed_mu = func.load_excel(year = 2021, sex = "남자")
+Dx, Ex, age, observed_mu = func.load_excel(year = 2015, sex = "남자")
 
 
 #func.run_batch(years = range(1990, 2021), #전체 범위는 (1970, 2024)
@@ -32,14 +32,14 @@ Dx, Ex, age, observed_mu = func.load_excel(year = 2021, sex = "남자")
 
 
 
-#func.run_test(year = 2001, sex = '남자', df = df, trial = 1500, use_weights = True, notice = True,
-#            center = 89, scale = 1, max_weight = 19, result_path = None,
-#            opt_func = "differential_evolution")
+func.run_test(year = 2015, sex = '남자', df = df, trial = 100, use_weights = True, notice = True,
+            center = 89, scale = 1, max_weight = 19, result_path = None,
+            opt_func = "differential_evolution")
 
-# TODO load_excel의 year랑 find_best_scale의 year이 같은지 판별할수 있나??
-func.find_best_scale(year = 2021, sex = "남자", trial = 200, 
-                    center_range = (85, 96, 1), scale_range = (1.0, 10.0, 0.5), max_weight_range = (2, 20, 1), n_runs = 100,
-                    Dx = Dx, Ex = Ex, age = age)
+
+#func.find_best_scale(year = 2021, sex = "남자", trial = 200, 
+#                    center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 10,
+#                    Dx = Dx, Ex = Ex, age = age)
 #2001년 남자는 89, 1, 19
 
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
