@@ -1,3 +1,4 @@
+from pathlib import Path
 import random
 from scipy.optimize import differential_evolution, minimize, dual_annealing
 import numpy as np
@@ -9,23 +10,14 @@ from tqdm import trange
 age = np.arange(65, 100, dtype=float)  # 65세부터 99세까지 기본값 설정
 Dx = None; Ex = None
 
-# 후보 경로들
-file_path_candidates = [
-    "C:/Users/pc/Desktop/project/65이상 생명표.xlsx",
-    "C:/Users/tw010/Desktop/project/65이상 생명표.xlsx"
-]
+base_dir = Path(__file__).resolve().parent
 
-# 성공한 경로를 찾기
-file_path = None
-file_path = next((p for p in file_path_candidates if os.path.exists(p)), None)
+# 생명표 읽기
+life_table_path = base_dir / "65이상 생명표.xlsx"
+df = pd.read_excel(life_table_path, sheet_name="Sheet1")
 
-if file_path is None:
-    raise FileNotFoundError("생명표 파일을 찾을 수 없습니다. 경로를 확인하세요.")
-else:
-    print("경로 연결됨")
-    df = pd.read_excel(file_path, sheet_name="Sheet1")
-
-
+output_path_batch = base_dir / "적합 결과.xlsx"
+output_path_weight = base_dir / "가중치 측정 결과.xlsx"
 
 def load_excel(year, sex, df = df) :
     df_surv = df[df['title'] == '생존자(남자)'] # age 추출용이라 성별 상관없음
@@ -177,9 +169,9 @@ def neg_log_likelihood_gm(params, age, Dx, Ex):
     return -logL
 
 # GM 적합 함수
-def fit_gm(age, Dx, Ex, bounds=[(0.000005, 0.0005), (0.05, 0.3), (0.00001, 0.05)]):
+def fit_gm(age, Dx, Ex, bounds=[(0.000005, 0.0005), (0.05, 0.5), (0.00001, 0.05)]):
     # 초기값 설정 (약한 제약 포함)
-    init_params = [1e-4, 0.1, 0.0005]
+    init_params = [0.00001, 0.1, 0.0005]
     
     result = minimize(
         fun = neg_log_likelihood_gm,
@@ -192,16 +184,15 @@ def fit_gm(age, Dx, Ex, bounds=[(0.000005, 0.0005), (0.05, 0.3), (0.00001, 0.05)
 
 def fit_ggm(age, Dx, Ex, bounds, init_params = None, 
             n = 100, meaningless = True, notice = False,
-            weight_func = None, weight_params = None,
+            weight_func = None, weight_params = None, best_neg_logL = None,
             use_rmse_filter = False, rmse_filter_params = None,
             opt_func = "differential_evolution") :
     # 경계 설정
-    if bounds is None :
-        bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.07, 0.25), (0.00001, 0.05)]
+    if bounds is None : bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.07, 0.25), (0.00001, 0.05)]
 
     epsilon = 1e-7
     best_result = None
-    best_nll = np.inf
+    best_neg_logL = best_neg_logL if best_neg_logL is not None else np.inf
     no_improve_count = 0
     boundary_issue_count = 0
     rmse_issue_count = 0
@@ -214,17 +205,13 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
                                                 weight_func = weight_func,
                                                 weight_params = weight_params)
     
-    for i in range(n) :
+    for i in trange(n, desc = "GGM 적합 진행중") :
             
         try :
-            result = run_optimizer(opt_func, neg_log_likelihood,
-                                    bounds, init_params)    
+            result = run_optimizer(opt_func, neg_log_likelihood, bounds, init_params)    
         except Exception as e :
             print(f"{i + 1}번째 시행 최적화 실패: {e}")   
             continue
-        
-        if notice and (i + 1) % 500 == 0 : 
-            print(f"{i + 1}번 시도했어요")
         
         params = result.x
         neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
@@ -244,7 +231,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             boundary_issue_count += 1
             continue  
         
-        if result.fun < best_nll :
+        if result.fun < best_neg_logL :
             if use_rmse_filter :
                 filter_params = rmse_filter_params if rmse_filter_params is not None else {}
                 rmse_threshold = filter_params.pop('rmse_threshold', 0.05)
@@ -252,14 +239,13 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             rmse_score = assess_fit_rmse(params, age, Dx, Ex, **filter_params)
             
             if rmse_score > rmse_threshold :
-                if notice :
-                    rmse_issue_count += 1
+                if notice : rmse_issue_count += 1
                 continue    
             
-            best_result, best_nll = result , result.fun
+            best_result, best_neg_logL = result , result.fun
             no_improve_count = 0
             if notice :
-                print(i + 1, "번째 시도: \n", result.x) # 진행상황 체크  
+                print(i + 1, "번째 시도: \n", result.x)  
         else: no_improve_count += 1  
         
         if meaningless and no_improve_count >= 500: 
@@ -323,7 +309,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     for year in years:
         # 연도별 lx, Ex 불러오기
         print(f"{year}년 시작")
-        Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+        year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
         
         weight_func = weight_sigmoid if use_weights else None
         weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -362,7 +348,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
             center = 80, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
             result_path = None, opt_func = "differential_evolution") :
     records = []
-    Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+    year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
     
     weight_func = weight_sigmoid if use_weights else None
     weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -487,7 +473,7 @@ def find_best_scale (year, sex, trial,
                     center_range, scale_range, max_weight_range, best_logL = None,
                     n_runs = 30, Dx = None, Ex = None, age = None) :
     
-    if best_logL is None : best_logL =  -np.inf
+    best_logL = best_logL if best_logL is not None else -np.inf
     best_result = None
 
     center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
@@ -495,15 +481,14 @@ def find_best_scale (year, sex, trial,
     max_weight_candidates = list(range(max_weight_range[0], max_weight_range[1] + 1, max_weight_range[2]))
 
     neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
-    for i in trange(n_runs, desc=f"Searching best scale for {year} {sex}"):
+    for i in trange(n_runs, desc = f"Searching best scale for {year} {sex}"):
         center = random.choice(center_candidates)
         scale = random.choice(scale_candidates)
         max_weight = random.choice(max_weight_candidates)
         
         try:
             result_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
-                                center = center, scale = scale, max_weight = max_weight,
-                                show_graph = False)
+                                center = center, scale = scale, max_weight = max_weight, show_graph = False)
         except Exception as e:
             print(f"실패: {e}")
             continue
@@ -530,5 +515,68 @@ def find_best_scale (year, sex, trial,
     print(f"b     = {b_best:.10f}")
     print(f"gamma = {gamma_best:.10f}")
     print(f"c     = {c_best:.10f}")
+    
+    return best_result, best_logL, best_scale_params
 
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
+
+def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, sex, filepath):
+    """
+    최적 GGM 파라미터 및 가중치 파라미터를 엑셀로 저장
+
+    A1: 연도
+    A2: 성별
+    A3~: a, b, gamma, c, logL, center, scale, max_weight
+    """
+    a, b, gamma, c = result.x
+    center = best_scale_params['center']
+    scale = best_scale_params['scale']
+    max_weight = best_scale_params['max_weight']
+
+    # 저장할 데이터프레임 구성
+    df = pd.DataFrame([{
+        "a": a,
+        "b": b,
+        "gamma": gamma,
+        "c": c,
+        "logL": logL_ggm_pure,
+        "center": center,
+        "scale": scale,
+        "max_weight": max_weight
+    }])
+
+    # ExcelWriter로 연도/성별 정보 포함하여 저장
+    with pd.ExcelWriter(filepath, engine='xlsxwriter') as writer:
+        # 첫 셀(0,0)에 연도와 성별 입력
+        worksheet = writer.book.add_worksheet("GGM_Params")
+        writer.sheets["GGM_Params"] = worksheet
+
+        worksheet.write(0, 0, "Year")
+        worksheet.write(0, 1, year)
+        worksheet.write(1, 0, "Sex")
+        worksheet.write(1, 1, sex)
+
+        # A3부터 DataFrame 저장
+        df.to_excel(writer, sheet_name="GGM_Params", startrow=2, index=False)
+
+def get_best_logL_from_file(filepath, year, sex):
+    """
+    결과 파일에서 (year, sex)에 해당하는 logL을 불러옵니다.
+    해당 데이터가 없으면 None 반환
+    """
+    if not os.path.exists(filepath):
+        return None
+    
+    try:
+        df = pd.read_excel(filepath)
+    except Exception as e:
+        print(f"파일 읽기 실패: {e}")
+        return None
+
+    mask = (df['year'] == year) & (df['sex'] == sex)
+    matched = df[mask]
+
+    if matched.empty:
+        return None
+    else:
+        return matched.iloc[0]['logL']        
