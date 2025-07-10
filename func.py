@@ -169,9 +169,9 @@ def neg_log_likelihood_gm(params, age, Dx, Ex):
     return -logL
 
 # GM 적합 함수
-def fit_gm(age, Dx, Ex, bounds=[(0.000005, 0.0005), (0.05, 0.5), (0.00001, 0.05)]):
+def fit_gm(age, Dx, Ex, bounds=[(0, 0.0005), (0.01, 0.4), (0, 0.05)]):
     # 초기값 설정 (약한 제약 포함)
-    init_params = [0.00001, 0.1, 0.0005]
+    init_params = [0.000005, 0.1, 0.00005]
     
     result = minimize(
         fun = neg_log_likelihood_gm,
