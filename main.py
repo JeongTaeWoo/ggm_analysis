@@ -31,12 +31,12 @@ year, sex, Dx, Ex, age, observed_mu = func.load_excel(year = 2014, sex = "여자
 
 #--------------------
 best_result, best_logL, best_scale_params = func.find_best_scale(year = year, sex = sex, trial = 50, 
-                    center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
+                    center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 50,
                     Dx = Dx, Ex = Ex, age = age, 
                     best_logL = func.get_best_logL_from_file(output_path_weight, year, sex))
 func.save_scale_result_to_excel(best_result, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
 #--------------------
-##2001년 남자는 89, 1, 19, 2015 여자 87, 8.5, 3
+
 
 
 #--------------------

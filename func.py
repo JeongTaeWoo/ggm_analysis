@@ -6,8 +6,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from tqdm import trange
+import xlsxwriter
 
-age = np.arange(65, 100, dtype=float)  # 65세부터 99세까지 기본값 설정
+age = np.arange(65, 100, dtype = float)  # 65세부터 99세까지 기본값 설정
 Dx = None; Ex = None
 
 base_dir = Path(__file__).resolve().parent
@@ -534,7 +535,9 @@ def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, s
     max_weight = best_scale_params['max_weight']
 
     # 저장할 데이터프레임 구성
-    df = pd.DataFrame([{
+    new_data = pd.DataFrame([{
+        "year": year,
+        "sex": sex,
         "a": a,
         "b": b,
         "gamma": gamma,
@@ -545,19 +548,25 @@ def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, s
         "max_weight": max_weight
     }])
 
-    # ExcelWriter로 연도/성별 정보 포함하여 저장
-    with pd.ExcelWriter(filepath, engine='xlsxwriter') as writer:
-        # 첫 셀(0,0)에 연도와 성별 입력
-        worksheet = writer.book.add_worksheet("GGM_Params")
-        writer.sheets["GGM_Params"] = worksheet
+    if os.path.exists(filepath):
+        try:
+            existing_data = pd.read_excel(filepath)
+        except Exception as e:
+            print(f"기존 파일 읽기 실패: {e}")
+            existing_data = pd.DataFrame()
+    else:
+        existing_data = pd.DataFrame()
 
-        worksheet.write(0, 0, "Year")
-        worksheet.write(0, 1, year)
-        worksheet.write(1, 0, "Sex")
-        worksheet.write(1, 1, sex)
+    # 기존에 동일한 year & sex가 있다면 삭제 후 새로 추가
+    if not existing_data.empty:
+        mask = (existing_data['year'] == year) & (existing_data['sex'] == sex)
+        existing_data = existing_data[~mask]
 
-        # A3부터 DataFrame 저장
-        df.to_excel(writer, sheet_name="GGM_Params", startrow=2, index=False)
+    # 데이터 합치기
+    updated_data = pd.concat([existing_data, new_data], ignore_index=True)
+
+    # 저장
+    updated_data.to_excel(filepath, index=False)    
 
 def get_best_logL_from_file(filepath, year, sex):
     """
