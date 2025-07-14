@@ -388,6 +388,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
     
     # GM 결과 생성
     result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
+    a_gm, b_gm, c_gm = result_gm.x
 
     if notice : 
         print("GGM 로그우도 :", logL_ggm_pure)
@@ -400,6 +401,11 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         print(f"c     = {c:.15f}")
         
         print("추정된 감속 나이 x* =", round(x_star, 2), "세")
+
+        print(f"a_gm     = {a_gm:.15f}")
+        print(f"b_gm     = {b_gm:.15f}")
+        print(f"c_gm     = {c_gm:.15f}")
+        
     
     if show_graph :
         fitted_plot(result_ggm, result_gm, observed_mu)
@@ -475,11 +481,23 @@ def find_best_scale (year, sex, trial,
                     n_runs = 30, Dx = None, Ex = None, age = None) :
     
     best_logL = best_logL if best_logL is not None else -np.inf
-    best_result = None
+    best_result = None; best_scale_params = None
+    improve_count = 0
 
-    center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
-    scale_candidates = [round(x, 1) for x in np.arange(*scale_range)]
-    max_weight_candidates = list(range(max_weight_range[0], max_weight_range[1] + 1, max_weight_range[2]))
+    if isinstance(center_range, (tuple, list)):
+        center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
+    else:
+        center_candidates = [center_range]
+
+    if isinstance(scale_range, (tuple, list)):
+        scale_candidates = [round(x, 1) for x in np.arange(*scale_range)]
+    else:
+        scale_candidates = [scale_range]
+
+    if isinstance(max_weight_range, (tuple, list)):
+        max_weight_candidates = list(range(max_weight_range[0], max_weight_range[1] + 1, max_weight_range[2]))
+    else:
+        max_weight_candidates = [max_weight_range]
 
     neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
     for i in trange(n_runs, desc = f"Searching best scale for {year} {sex}"):
@@ -497,6 +515,7 @@ def find_best_scale (year, sex, trial,
         logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
 
         if logL_ggm_pure > best_logL :
+            improve_count += 1
             best_logL = logL_ggm_pure
             best_scale_params = {
                 "center": center,
@@ -506,16 +525,19 @@ def find_best_scale (year, sex, trial,
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x             
 
-    print(f"최고 로그우도 : {best_logL}")
-    print("최적 scale:")
-    print(f"center     = {best_scale_params['center']}")
-    print(f"scale      = {best_scale_params['scale']}")
-    print(f"max_weight = {best_scale_params['max_weight']}")
-    print("---------------------------")
-    print(f"a     = {a_best:.10f}")
-    print(f"b     = {b_best:.10f}")
-    print(f"gamma = {gamma_best:.10f}")
-    print(f"c     = {c_best:.10f}")
+    if improve_count == 0 : print("개선 실패")
+    elif improve_count != 0 :
+        print(improve_count, "회 개선 성공")
+        print(f"최고 로그우도 : {best_logL}")
+        print("최적 scale:")
+        print(f"center     = {best_scale_params['center']}")
+        print(f"scale      = {best_scale_params['scale']}")
+        print(f"max_weight = {best_scale_params['max_weight']}")
+        print("---------------------------")
+        print(f"a     = {a_best:.10f}")
+        print(f"b     = {b_best:.10f}")
+        print(f"gamma = {gamma_best:.10f}")
+        print(f"c     = {c_best:.10f}")
     
     return best_result, best_logL, best_scale_params
 
@@ -568,24 +590,46 @@ def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, s
     # 저장
     updated_data.to_excel(filepath, index=False)    
 
-def get_best_logL_from_file(filepath, year, sex):
+def get_scale_data_from_file(filepath, year, sex, default_center = None, default_scale = None, default_max_weight = None):
     """
-    결과 파일에서 (year, sex)에 해당하는 logL을 불러옵니다.
+    결과 파일에서 (year, sex)에 해당하는 logL, center, scale, max_weight을 불러옵니다.
     해당 데이터가 없으면 None 반환
     """
     if not os.path.exists(filepath):
-        return None
+        print(f"파일이 존재하지 않습니다: {filepath}")
+        return {
+            'logL': None,
+            'center': default_center,
+            'scale': default_scale,
+            'max_weight': default_max_weight
+        }
     
     try:
         df = pd.read_excel(filepath)
     except Exception as e:
         print(f"파일 읽기 실패: {e}")
-        return None
+        return {
+            'logL': None,
+            'center': default_center,
+            'scale': default_scale,
+            'max_weight': default_max_weight
+        }
 
     mask = (df['year'] == year) & (df['sex'] == sex)
     matched = df[mask]
 
     if matched.empty:
-        return None
-    else:
-        return matched.iloc[0]['logL']        
+        return {
+            'logL': None,
+            'center': default_center,
+            'scale': default_scale,
+            'max_weight': default_max_weight
+        }
+    row = matched.iloc[0]
+
+    return {
+        'logL': row.get('logL', None),
+        'center': row.get('center', default_center),
+        'scale': row.get('scale', default_scale),
+        'max_weight': row.get('max_weight', default_max_weight)
+    }
