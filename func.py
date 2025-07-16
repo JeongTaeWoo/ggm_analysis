@@ -276,6 +276,24 @@ def fitted_plot(result_ggm, result_gm, mu_obs) :
     plt.grid(True)
     plt.show()
 
+def fitting_gm(year, sex, age):
+    year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+    result = fit_gm(age = age, Dx = Dx, Ex = Ex)
+    a, b, c = result.x
+    fitted_mu_gm = a * np.exp(b * age) + c
+
+    print(f"a_gm     = {a:.15f}")
+    print(f"b_gm     = {b:.15f}")
+    print(f"c_gm     = {c:.15f}")
+
+    plt.plot(age, observed_mu, label='Observed', marker='o')
+    plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
+    plt.xlabel('Age')
+    plt.ylabel('Mortality Rate')
+    plt.title('Gompertz-Makeham Fit')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 def calc(result, age) :
     a, b, gamma, c = result.x
@@ -346,7 +364,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     
     
 def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice = True,
-            center = 80, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
+            center = 90, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
             result_path = None, opt_func = "differential_evolution") :
     records = []
     year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
