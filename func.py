@@ -170,7 +170,7 @@ def neg_log_likelihood_gm(params, age, Dx, Ex):
     return -logL
 
 # GM 적합 함수
-def fit_gm(age, Dx, Ex, bounds=[(0, 0.0005), (0.01, 0.5), (0, 0.05)]):
+def fit_gm(age, Dx, Ex, bounds=[(0, 0.0005), (0.01, 0.5), (0.000001, 0.05)]):
     # 초기값 설정 (약한 제약 포함)
     init_params = [0.00005, 0.1, 0.00005]
     
@@ -189,7 +189,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             use_rmse_filter = False, rmse_filter_params = None,
             opt_func = "differential_evolution") :
     # 경계 설정
-    if bounds is None : bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.07, 0.25), (0.00001, 0.05)]
+    if bounds is None : bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.07, 0.2), (0.00001, 0.05)]
 
     epsilon = 1e-7
     best_result = None
@@ -276,7 +276,7 @@ def fitted_plot(result_ggm, result_gm, mu_obs) :
     plt.grid(True)
     plt.show()
 
-def fitting_gm(year, sex, age):
+def fitting_gm(year, sex, age, show_graph = True):
     year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
     result = fit_gm(age = age, Dx = Dx, Ex = Ex)
     a, b, c = result.x
@@ -286,14 +286,17 @@ def fitting_gm(year, sex, age):
     print(f"b_gm     = {b:.15f}")
     print(f"c_gm     = {c:.15f}")
 
-    plt.plot(age, observed_mu, label='Observed', marker='o')
-    plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
-    plt.xlabel('Age')
-    plt.ylabel('Mortality Rate')
-    plt.title('Gompertz-Makeham Fit')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+    if show_graph : 
+        plt.plot(age, observed_mu, label='Observed', marker='o')
+        plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
+        plt.xlabel('Age')
+        plt.ylabel('Mortality Rate')
+        plt.title('Gompertz-Makeham Fit')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    return result
 
 def calc(result, age) :
     a, b, gamma, c = result.x
@@ -495,10 +498,11 @@ def draw_LAR (params, age):
     plt.show()
     
 def find_best_scale (year, sex, trial,
-                    center_range, scale_range, max_weight_range, best_logL = None,
+                    center_range, scale_range, max_weight_range, best_logL_ggm = None, best_logL_gm = None,
                     n_runs = 30, Dx = None, Ex = None, age = None) :
     
-    best_logL = best_logL if best_logL is not None else -np.inf
+    best_logL_gm = best_logL_ggm if best_logL_ggm is not None else -np.inf
+    best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
     best_result = None; best_scale_params = None
     improve_count = 0
 
@@ -532,9 +536,9 @@ def find_best_scale (year, sex, trial,
         
         logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
 
-        if logL_ggm_pure > best_logL :
+        if logL_ggm_pure > best_logL_ggm :
             improve_count += 1
-            best_logL = logL_ggm_pure
+            best_logL_ggm = logL_ggm_pure
             best_scale_params = {
                 "center": center,
                 "scale": scale,
@@ -546,7 +550,7 @@ def find_best_scale (year, sex, trial,
     if improve_count == 0 : print("개선 실패")
     elif improve_count != 0 :
         print(improve_count, "회 개선 성공")
-        print(f"최고 로그우도 : {best_logL}")
+        print(f"최고 로그우도 : {best_logL_ggm}")
         print("최적 scale:")
         print(f"center     = {best_scale_params['center']}")
         print(f"scale      = {best_scale_params['scale']}")
@@ -557,35 +561,26 @@ def find_best_scale (year, sex, trial,
         print(f"gamma = {gamma_best:.10f}")
         print(f"c     = {c_best:.10f}")
     
-    return best_result, best_logL, best_scale_params
+    return best_result, best_logL_ggm, best_scale_params
 
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
 
-def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, sex, filepath):
-    """
-    최적 GGM 파라미터 및 가중치 파라미터를 엑셀로 저장
+def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_params, year, sex, filepath):
 
-    A1: 연도
-    A2: 성별
-    A3~: a, b, gamma, c, logL, center, scale, max_weight
-    """
-    a, b, gamma, c = result.x
+    # 최적 GGM 파라미터 및 가중치 파라미터를 엑셀로 저장
+
+    a, b, gamma, c = result_ggm.x
     center = best_scale_params['center']
     scale = best_scale_params['scale']
     max_weight = best_scale_params['max_weight']
+    observed_mu, x_star = calc(result_ggm, age)
+    a_gm, b_gm, c_gm = result_gm.x
 
     # 저장할 데이터프레임 구성
     new_data = pd.DataFrame([{
-        "year": year,
-        "sex": sex,
-        "a": a,
-        "b": b,
-        "gamma": gamma,
-        "c": c,
-        "logL": logL_ggm_pure,
-        "center": center,
-        "scale": scale,
-        "max_weight": max_weight
+        "year": year, "sex": sex, "a": a, "b": b, "gamma": gamma, "c": c,
+        "logL_ggm": logL_ggm_pure, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
+        "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm" : -result_gm.fun
     }])
 
     if os.path.exists(filepath):
@@ -603,7 +598,7 @@ def save_scale_result_to_excel(result, logL_ggm_pure, best_scale_params, year, s
         existing_data = existing_data[~mask]
 
     # 데이터 합치기
-    updated_data = pd.concat([existing_data, new_data], ignore_index=True)
+    updated_data = pd.concat([existing_data, new_data], ignore_index = True)
 
     # 저장
     updated_data.to_excel(filepath, index=False)    
@@ -616,7 +611,7 @@ def get_scale_data_from_file(filepath, year, sex, default_center = None, default
     if not os.path.exists(filepath):
         print(f"파일이 존재하지 않습니다: {filepath}")
         return {
-            'logL': None,
+            'logL_ggm': None,
             'center': default_center,
             'scale': default_scale,
             'max_weight': default_max_weight
@@ -627,7 +622,7 @@ def get_scale_data_from_file(filepath, year, sex, default_center = None, default
     except Exception as e:
         print(f"파일 읽기 실패: {e}")
         return {
-            'logL': None,
+            'logL_ggm': None,
             'center': default_center,
             'scale': default_scale,
             'max_weight': default_max_weight
@@ -638,7 +633,7 @@ def get_scale_data_from_file(filepath, year, sex, default_center = None, default
 
     if matched.empty:
         return {
-            'logL': None,
+            'logL_ggm': None,
             'center': default_center,
             'scale': default_scale,
             'max_weight': default_max_weight
@@ -646,7 +641,7 @@ def get_scale_data_from_file(filepath, year, sex, default_center = None, default
     row = matched.iloc[0]
 
     return {
-        'logL': row.get('logL', None),
+        'logL_ggm': row.get('logL_ggm', None),
         'center': row.get('center', default_center),
         'scale': row.get('scale', default_scale),
         'max_weight': row.get('max_weight', default_max_weight)

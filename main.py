@@ -2,9 +2,11 @@ import pandas as pd
 import func
 from pathlib import Path
 import os
+from win10toast import ToastNotifier
 
 
 base_dir = Path(__file__).resolve().parent
+toaster = ToastNotifier() #알림용
 
 # 생명표 읽기
 life_table_path = base_dir / "65이상 생명표.xlsx"
@@ -15,7 +17,7 @@ output_path_batch = base_dir / "적합 결과.xlsx"
 output_path_weight = base_dir / "가중치 측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_excel(year = 2011, sex = "여자")
+year, sex, Dx, Ex, age, observed_mu = func.load_excel(year = 1979, sex = "남자")
 
 
 #--------------------
@@ -24,7 +26,8 @@ year, sex, Dx, Ex, age, observed_mu = func.load_excel(year = 2011, sex = "여자
 #               center = 80, scale = 3, max_weight = 5,
 #               output_path = output_path_batch)
 #--------------------
-
+# TODO GM도 best_logL이랑 비교하게 해야함, 엑셀파일 읽어오는거를 모든 파라미터 긁어오게 해야할 거 같음
+#--------------------
 # scale_result = func.get_scale_data_from_file(output_path_weight, year, sex, 
 #     default_center = 91, default_scale = 5, default_max_weight = 5)
 # func.run_test(year = year, sex = sex, df = df, trial = 500, use_weights = True, notice = True,
@@ -38,21 +41,51 @@ year, sex, Dx, Ex, age, observed_mu = func.load_excel(year = 2011, sex = "여자
 
 #--------------------
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
-func.fitting_gm(year = year, sex = sex, age = age)
+result_gm = func.fitting_gm(year = year, sex = sex, age = age, show_graph = False)
 try:
     scale_result = func.get_scale_data_from_file(output_path_weight, year, sex)
     best_result, best_logL, best_scale_params = func.find_best_scale(year = year, sex = sex, trial = 100, 
-                        center_range = 91, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 50,
+                        center_range = 91, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
                         Dx = Dx, Ex = Ex, age = age, 
-                        best_logL = scale_result['logL'])
-    func.save_scale_result_to_excel(best_result, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
-finally: pass
+                        best_logL = scale_result['logL_ggm'])
+    func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
+
+except AttributeError as e:
+    print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
+
+except Exception as e:
+    print(f"알 수 없는 오류 발생: {e}")     
+
+finally: 
+    pass
     #os.system("shutdown /h")    
 #--------------------
 
+#-------------------- for문 사용할 때
+#center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
+# result_gm = func.fitting_gm(year = year, sex = sex, age = age)
+# for k in range(2, 20, 1):
+#     try:
+#         scale_result = func.get_scale_data_from_file(output_path_weight, year, sex)
+#         best_result, best_logL, best_scale_params = func.find_best_scale(year = year, sex = sex, trial = 100, 
+#                             center_range = 91, scale_range = 3.5, max_weight_range = k, n_runs = 5,
+#                             Dx = Dx, Ex = Ex, age = age, 
+#                             best_logL = scale_result['logL_ggm'])
+#         func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
 
+#     except AttributeError as e:
+#         print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
+
+#     except Exception as e:
+#         print(f"알 수 없는 오류 발생: {e}")     
+
+#     finally: 
+#         pass
+#         #os.system("shutdown /h") 
+#--------------------
 
 #--------------------
 #result = func.result_maker(1.12E-05,	0.120908336,	0.207022451,	0.0272633321)
 #func.fitted_plot(result, mu_obs)
 #--------------------
+toaster.show_toast("작업 완료", duration = 5)
