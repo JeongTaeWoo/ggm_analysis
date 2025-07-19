@@ -20,7 +20,7 @@ df = pd.read_excel(life_table_path, sheet_name="Sheet1")
 output_path_batch = base_dir / "적합 결과.xlsx"
 output_path_weight = base_dir / "가중치 측정 결과.xlsx"
 
-def load_excel(year, sex, df = df) :
+def load_life_table(year, sex, df = df) :
     df_surv = df[df['title'] == '생존자(남자)'] # age 추출용이라 성별 상관없음
     age_raw = pd.to_numeric(df_surv['age'], errors='coerce')
     age = age_raw[:-1].reset_index(drop=True)
@@ -261,7 +261,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     return best_result
 
 def fitted_plot(result_ggm, result_gm, mu_obs) :
-    fitted_mu_ggm, x_star = calc(result_ggm, age)
+    fitted_mu_ggm, x_star = calc_ggm(result_ggm, age)
     a_gm, b_gm, c_gm = result_gm.x
     fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
 
@@ -277,16 +277,15 @@ def fitted_plot(result_ggm, result_gm, mu_obs) :
     plt.show()
 
 def fitting_gm(year, sex, age, show_graph = True):
-    year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+    year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
     result = fit_gm(age = age, Dx = Dx, Ex = Ex)
     a, b, c = result.x
     fitted_mu_gm = a * np.exp(b * age) + c
 
-    print(f"a_gm     = {a:.15f}")
-    print(f"b_gm     = {b:.15f}")
-    print(f"c_gm     = {c:.15f}")
-
     if show_graph : 
+        print(f"a_gm     = {a:.15f}")
+        print(f"b_gm     = {b:.15f}")
+        print(f"c_gm     = {c:.15f}")
         plt.plot(age, observed_mu, label='Observed', marker='o')
         plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
         plt.xlabel('Age')
@@ -298,7 +297,7 @@ def fitting_gm(year, sex, age, show_graph = True):
 
     return result
 
-def calc(result, age) :
+def calc_ggm(result, age) :
     a, b, gamma, c = result.x
     log_num = np.log(a) + b * age
     log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
@@ -331,7 +330,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     for year in years:
         # 연도별 lx, Ex 불러오기
         print(f"{year}년 시작")
-        year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+        year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
         
         weight_func = weight_sigmoid if use_weights else None
         weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -348,7 +347,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
         
         if result and result.success:
             a, b, gamma, c = result.x
-            fitted_mu, x_star = calc(result, age)
+            fitted_mu, x_star = calc_ggm(result, age)
             
         # 결과 레코드 생성
         base = {'sex': sex,
@@ -370,7 +369,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
             center = 90, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
             result_path = None, opt_func = "differential_evolution") :
     records = []
-    year, sex, Dx, Ex, age, observed_mu = load_excel(year = year, sex = sex)
+    year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
     
     weight_func = weight_sigmoid if use_weights else None
     weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
@@ -386,7 +385,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                         opt_func = opt_func)
     if result_ggm and result_ggm.success:
         a, b, gamma, c = result_ggm.x
-        fitted_mu, x_star = calc(result_ggm, age)
+        fitted_mu, x_star = calc_ggm(result_ggm, age)
         
     if result_path is not None :
         # 결과 레코드 생성
@@ -497,14 +496,22 @@ def draw_LAR (params, age):
     plt.grid(True)
     plt.show()
     
-def find_best_scale (year, sex, trial,
-                    center_range, scale_range, max_weight_range, best_logL_ggm = None, best_logL_gm = None,
-                    n_runs = 30, Dx = None, Ex = None, age = None) :
+def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, 
+                    best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None) :
     
-    best_logL_gm = best_logL_ggm if best_logL_ggm is not None else -np.inf
+    result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = True) 
+    best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
     best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
     best_result = None; best_scale_params = None
     improve_count = 0
+    fitting_fail_count = 0
+    year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
+
+    if -result_gm.fun > best_logL_gm :
+        best_logL_gm = -result_gm.fun
+        print("GM 개선 성공")
+    else: 
+        print("GM 개선 실패")
 
     if isinstance(center_range, (tuple, list)):
         center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
@@ -532,6 +539,7 @@ def find_best_scale (year, sex, trial,
                                 center = center, scale = scale, max_weight = max_weight, show_graph = False)
         except Exception as e:
             print(f"실패: {e}")
+            fitting_fail_count += 1
             continue
         
         logL_ggm_pure = -neg_log_likelihood_pure(result_ggm.x)
@@ -545,8 +553,9 @@ def find_best_scale (year, sex, trial,
                 "max_weight": max_weight
             }
             best_result = result_ggm
-            a_best, b_best, gamma_best, c_best = best_result.x             
+            a_best, b_best, gamma_best, c_best = best_result.x        
 
+    print(f"{n_runs}회 시행, {fitting_fail_count}회 실패")
     if improve_count == 0 : print("개선 실패")
     elif improve_count != 0 :
         print(improve_count, "회 개선 성공")
@@ -560,8 +569,8 @@ def find_best_scale (year, sex, trial,
         print(f"b     = {b_best:.10f}")
         print(f"gamma = {gamma_best:.10f}")
         print(f"c     = {c_best:.10f}")
-    
-    return best_result, best_logL_ggm, best_scale_params
+
+    return best_result, best_logL_ggm, best_scale_params, result_gm
 
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
 
@@ -573,7 +582,7 @@ def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_
     center = best_scale_params['center']
     scale = best_scale_params['scale']
     max_weight = best_scale_params['max_weight']
-    observed_mu, x_star = calc(result_ggm, age)
+    fitted_mu_ggm, x_star = calc_ggm(result_ggm, age)
     a_gm, b_gm, c_gm = result_gm.x
 
     # 저장할 데이터프레임 구성
@@ -603,46 +612,44 @@ def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_
     # 저장
     updated_data.to_excel(filepath, index=False)    
 
-def get_scale_data_from_file(filepath, year, sex, default_center = None, default_scale = None, default_max_weight = None):
+
+def get_scale_data_from_file(filepath, year, sex, default_value = None):
     """
-    결과 파일에서 (year, sex)에 해당하는 logL, center, scale, max_weight을 불러옵니다.
-    해당 데이터가 없으면 None 반환
+    결과 파일에서 (year, sex)에 해당하는 데이터를 딕셔너리로 반환합니다.
+    - 해당 데이터가 없으면 default_values를 기반으로 생성된 dict를 반환합니다.
+    - default_values는 {'center': x, 'scale': y, ...} 형태로 전달 가능
     """
+    if default_value is None:
+        default_value = {}
+
     if not os.path.exists(filepath):
         print(f"파일이 존재하지 않습니다: {filepath}")
-        return {
-            'logL_ggm': None,
-            'center': default_center,
-            'scale': default_scale,
-            'max_weight': default_max_weight
-        }
+        return {'logL_ggm': None, 'logL_gm': None, **default_value}
     
     try:
         df = pd.read_excel(filepath)
     except Exception as e:
         print(f"파일 읽기 실패: {e}")
-        return {
-            'logL_ggm': None,
-            'center': default_center,
-            'scale': default_scale,
-            'max_weight': default_max_weight
-        }
-
+        return {'logL_ggm': None, 'logL_gm': None, **default_value}
+    
     mask = (df['year'] == year) & (df['sex'] == sex)
     matched = df[mask]
 
     if matched.empty:
-        return {
-            'logL_ggm': None,
-            'center': default_center,
-            'scale': default_scale,
-            'max_weight': default_max_weight
-        }
-    row = matched.iloc[0]
+        return {'logL_ggm': None, 'logL_gm': None, **default_value}
 
-    return {
-        'logL_ggm': row.get('logL_ggm', None),
-        'center': row.get('center', default_center),
-        'scale': row.get('scale', default_scale),
-        'max_weight': row.get('max_weight', default_max_weight)
-    }
+    row = matched.iloc[0].to_dict()
+    row = {k: (None if pd.isna(v) else v) for k, v in row.items()}
+
+    # 필수 항목들 None 반환
+    essential_keys = ['logL_ggm', 'logL_gm']
+    for key in essential_keys:
+        if key not in row:
+            row[key] = None
+
+    # default_values에 있는 값으로 결측 채우기
+    for key, default in default_value.items():
+        if pd.isna(row.get(key)):
+            row[key] = default
+    
+    return row
