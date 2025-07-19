@@ -17,7 +17,7 @@ output_path_batch = base_dir / "적합 결과.xlsx"
 output_path_weight = base_dir / "가중치 측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2021, sex = "여자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 1990, sex = "여자")
 
 
 #--------------------
@@ -44,7 +44,7 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2021, sex = "�
 try:
     scale_result = func.get_scale_data_from_file(output_path_weight, year, sex) ; print(scale_result)
     best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100, 
-                        center_range = 91, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 30,
+                        center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 30,
                         Dx = Dx, Ex = Ex, age = age, 
                         best_logL_ggm = scale_result['logL_ggm'], best_logL_gm = scale_result['logL_gm'])
     func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
