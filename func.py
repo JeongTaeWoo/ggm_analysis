@@ -260,21 +260,21 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     
     return best_result
 
-def fitted_plot(result_ggm, result_gm, mu_obs) :
-    fitted_mu_ggm, x_star = calc_ggm(result_ggm, age)
-    a_gm, b_gm, c_gm = result_gm.x
+def fitted_plot(ggm_params, gm_params, mu_obs, age):
+    a_gm, b_gm, c_gm = gm_params
+    fitted_mu_ggm, _ = calc_ggm(ggm_params, age)
     fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
 
-    # 시각화
     plt.plot(age, mu_obs, label='Observed', marker='o')
-    plt.plot(age, fitted_mu_ggm, label = 'Fitted GGM', linestyle = '--')
-    plt.plot(age, fitted_mu_gm, label = 'Fitted GM', linestyle = ':')
+    plt.plot(age, fitted_mu_ggm, label='Fitted GGM', linestyle='--')
+    plt.plot(age, fitted_mu_gm, label='Fitted GM', linestyle=':')
     plt.xlabel('Age')
     plt.ylabel('Mortality Rate')
     plt.title('Gamma-Gompertz-Makeham Fit')
     plt.legend()
     plt.grid(True)
     plt.show()
+
 
 def fitting_gm(year, sex, age, show_graph = True):
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
@@ -297,21 +297,22 @@ def fitting_gm(year, sex, age, show_graph = True):
 
     return result
 
-def calc_ggm(result, age) :
-    a, b, gamma, c = result.x
+def calc_ggm(params, age):
+    a, b, gamma, c = params
     log_num = np.log(a) + b * age
     log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
     fitted_mu = np.exp(log_num - log_denom) + c
-    
+
     num = (b + c * gamma) * c
     denom = 2 * a * b
     root_numer = (b + c * gamma) * c * gamma * ((b + c * gamma) * c - 4 * b * (a * gamma - b))
     root_denom = 2 * a * b * gamma
     log_argument = (num / denom) + (np.sqrt(root_numer) / root_denom)
-    
+
     x_star = (1 / b) * np.log(log_argument)  
-    
+
     return fitted_mu, x_star
+
     
 def run_batch(years, sex, df, output_path, trial = 100, 
             use_weights = True, use_rmse_filter = True,
@@ -347,7 +348,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
         
         if result and result.success:
             a, b, gamma, c = result.x
-            fitted_mu, x_star = calc_ggm(result, age)
+            fitted_mu, x_star = calc_ggm(result.x, age)
             
         # 결과 레코드 생성
         base = {'sex': sex,
@@ -367,7 +368,7 @@ def run_batch(years, sex, df, output_path, trial = 100,
     
 def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice = True,
             center = 90, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
-            result_path = None, opt_func = "differential_evolution") :
+            result_path = None, opt_func = "differential_evolution", fallback_filepath = None) :
     records = []
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
     
@@ -383,15 +384,24 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                         use_rmse_filter = use_rmse_filter,
                         rmse_filter_params = function_params,
                         opt_func = opt_func)
+    
     if result_ggm and result_ggm.success:
         a, b, gamma, c = result_ggm.x
-        fitted_mu, x_star = calc_ggm(result_ggm, age)
+        fitted_mu, x_star = calc_ggm(result_ggm.x, age)
+    elif fallback_filepath:
+        scale_row = get_scale_data_from_file(fallback_filepath, year, sex)
+        a, b, gamma, c = scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']
+        fitted_mu, x_star = calc_ggm([a, b, gamma, c], age)
+        result_ggm = result_maker(a, b, gamma, c)
+        if notice:
+            print("GGM 적합 실패 → 기존 파라미터로 대체")    
+    else:
+        raise RuntimeError("GGM 적합 실패 및 fallback 파일 없음")
         
     if result_path is not None :
         # 결과 레코드 생성
         base = {
-            'sex': sex,
-            'year': year,
+            'sex': sex, 'year': year,
             'a': a, 'b': b, 'gamma': gamma, 'c': c, 
             'x*': x_star}
     
@@ -428,7 +438,8 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         
     
     if show_graph :
-        fitted_plot(result_ggm, result_gm, observed_mu)
+        fitted_plot([a, b, gamma, c], result_gm.x, observed_mu, age)
+
     
     return result_ggm
     
@@ -496,7 +507,7 @@ def draw_LAR (params, age):
     plt.grid(True)
     plt.show()
     
-def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, 
+def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath,
                     best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None) :
     
     result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = True) 
@@ -538,7 +549,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             result_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
                                 center = center, scale = scale, max_weight = max_weight, show_graph = False)
         except Exception as e:
-            print(f"실패: {e}")
+            print(f"적합 실패: {e}")
             fitting_fail_count += 1
             continue
         
@@ -555,9 +566,17 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x        
 
-    print(f"{n_runs}회 시행, {fitting_fail_count}회 실패")
-    if improve_count == 0 : print("개선 실패")
-    elif improve_count != 0 :
+    if improve_count > 0:
+        ggm_params = best_result.x
+    else:
+        if filepath is None:
+            raise ValueError("개선 실패 시 기존 파라미터를 불러오기 위해 filepath 인자가 필요합니다.")
+        scale_row = get_scale_data_from_file(filepath, year, sex)
+        ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
+
+    fitted_plot(ggm_params, result_gm.x, observed_mu, age)
+
+    if improve_count > 0:
         print(improve_count, "회 개선 성공")
         print(f"최고 로그우도 : {best_logL_ggm}")
         print("최적 scale:")
@@ -565,10 +584,15 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         print(f"scale      = {best_scale_params['scale']}")
         print(f"max_weight = {best_scale_params['max_weight']}")
         print("---------------------------")
+        a_best, b_best, gamma_best, c_best = best_result.x
         print(f"a     = {a_best:.10f}")
         print(f"b     = {b_best:.10f}")
         print(f"gamma = {gamma_best:.10f}")
         print(f"c     = {c_best:.10f}")
+
+    else:
+        print("개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.")
+
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
 
@@ -582,7 +606,7 @@ def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_
     center = best_scale_params['center']
     scale = best_scale_params['scale']
     max_weight = best_scale_params['max_weight']
-    fitted_mu_ggm, x_star = calc_ggm(result_ggm, age)
+    fitted_mu_ggm, x_star = calc_ggm(result_ggm.x, age)
     a_gm, b_gm, c_gm = result_gm.x
 
     # 저장할 데이터프레임 구성
