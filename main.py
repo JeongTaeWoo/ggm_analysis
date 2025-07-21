@@ -2,6 +2,7 @@ import pandas as pd
 import func
 from pathlib import Path
 from plyer import notification
+import os
 
 
 base_dir = Path(__file__).resolve().parent
@@ -40,46 +41,50 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2014, sex = "�
 
 #--------------------
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
-try:
-    scale_result = func.get_scale_data_from_file(output_path_weight, year, sex) ; print(scale_result)
-    best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100, 
-                        center_range = (88, 94, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 30,
-                        Dx = Dx, Ex = Ex, age = age, filepath = output_path_weight,
-                        best_logL_ggm = scale_result['logL_ggm'], best_logL_gm = scale_result['logL_gm'])
-    func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
+# try:
+#     scale_result = func.get_scale_data_from_file(output_path_weight, year, sex) ; print(scale_result)
+#     best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100, 
+#                         center_range = (89, 94, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 30,
+#                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_weight,
+#                         best_logL_ggm = scale_result['logL_ggm'], best_logL_gm = scale_result['logL_gm'])
+#     func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
 
-except AttributeError as e:
-    print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
+# except AttributeError as e:
+#     print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
-except Exception as e:
-    print(f"알 수 없는 오류 발생: {e}")     
+# except Exception as e:
+#     print(f"알 수 없는 오류 발생: {e}")     
 
-finally: 
-    pass
-    #os.system("shutdown /h")    
+# finally: 
+#     pass
+#     #os.system("shutdown /h")    
 #--------------------
 
+# TODO 그래프 안나오는거도 가능하게
 #-------------------- for문 사용할 때
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
-# result_gm = func.fitting_gm(year = year, sex = sex, age = age)
-# for k in range(2, 20, 1):
-#     try:
-#         scale_result = func.get_scale_data_from_file(output_path_weight, year, sex)
-#         best_result, best_logL, best_scale_params = func.find_best_scale(year = year, sex = sex, trial = 100, 
-#                             center_range = 91, scale_range = 3.5, max_weight_range = k, n_runs = 5,
-#                             Dx = Dx, Ex = Ex, age = age, 
-#                             best_logL = scale_result['logL_ggm'])
-#         func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
+result_gm = func.fitting_gm(year = year, sex = sex, age = age)
+for i in range(89, 93, 1) :
+    for j in range(1, 10, 1):
+        for k in range(2, 20, 1):
+            try:
+                scale_result = func.get_scale_data_from_file(output_path_weight, year, sex) 
+                best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100, 
+                                    center_range = i, scale_range = j, max_weight_range = k, n_runs = 3,
+                                    Dx = Dx, Ex = Ex, age = age, filepath = output_path_weight,
+                                    best_logL_ggm = scale_result['logL_ggm'], best_logL_gm = scale_result['logL_gm'])
+                func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
 
-#     except AttributeError as e:
-#         print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
-#     except Exception as e:
-#         print(f"알 수 없는 오류 발생: {e}")     
+            except AttributeError as e:
+                print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
-#     finally: 
-#         pass
-#         #os.system("shutdown /h") 
+            except Exception as e:
+                print(f"알 수 없는 오류 발생: {e}")     
+
+            finally: 
+                pass
+                #os.system("shutdown /h") 
 #--------------------
 
 #--------------------
@@ -87,3 +92,5 @@ finally:
 #func.fitted_plot(result, mu_obs)
 #--------------------
 notification.notify(title="작업 완료", timeout=5)
+
+os.system("shutdown /h")
