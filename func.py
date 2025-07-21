@@ -508,9 +508,9 @@ def draw_LAR (params, age):
     plt.show()
     
 def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath,
-                    best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None) :
+                    best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True) :
     
-    result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = True) 
+    result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
     best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
     best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
     best_result = None; best_scale_params = None
@@ -574,7 +574,8 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         scale_row = get_scale_data_from_file(filepath, year, sex)
         ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
 
-    fitted_plot(ggm_params, result_gm.x, observed_mu, age)
+    if show_graph :
+        fitted_plot(ggm_params, result_gm.x, observed_mu, age)
 
     if improve_count > 0:
         print(improve_count, "회 개선 성공")

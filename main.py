@@ -60,17 +60,18 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2014, sex = "�
 #     #os.system("shutdown /h")    
 #--------------------
 
-# TODO 그래프 안나오는거도 가능하게
+# TODO i j k 정수밖에 못 가지는듯? scale 0.5단위로 하고싶음
 #-------------------- for문 사용할 때
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
-result_gm = func.fitting_gm(year = year, sex = sex, age = age)
+result_gm = func.fitting_gm(year = year, sex = sex, age = age, show_graph = False)
 for i in range(89, 93, 1) :
     for j in range(1, 10, 1):
         for k in range(2, 20, 1):
             try:
+                print(f"center = {i}, scale = {j}, max weight = {k}")
                 scale_result = func.get_scale_data_from_file(output_path_weight, year, sex) 
-                best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100, 
-                                    center_range = i, scale_range = j, max_weight_range = k, n_runs = 3,
+                best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 50, 
+                                    center_range = i, scale_range = j, max_weight_range = k, n_runs = 2, show_graph = False,
                                     Dx = Dx, Ex = Ex, age = age, filepath = output_path_weight,
                                     best_logL_ggm = scale_result['logL_ggm'], best_logL_gm = scale_result['logL_gm'])
                 func.save_scale_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_weight)
@@ -84,7 +85,7 @@ for i in range(89, 93, 1) :
 
             finally: 
                 pass
-                #os.system("shutdown /h") 
+#os.system("shutdown /h")                 
 #--------------------
 
 #--------------------
@@ -92,5 +93,3 @@ for i in range(89, 93, 1) :
 #func.fitted_plot(result, mu_obs)
 #--------------------
 notification.notify(title="작업 완료", timeout=5)
-
-os.system("shutdown /h")
