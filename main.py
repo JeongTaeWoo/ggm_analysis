@@ -30,6 +30,8 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2015, sex = "�
 #             opt_func = "differential_evolution", fallback_filepath = output_path_result)
 #--------------------
 # TODO fit_ggm 함수의 weight_params랑 rmse_params 통일시키기
+# TODO run_test 하는거 없으면 지우기
+# TODO AICc 같은 지표들 계산하는 함수 만들어서 비교하고 엑셀에 저장하게 만들기 (find_best_scale 내부에서 호출한 뒤에 결과 받으면 될듯)
 #--------------------
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
 try:
