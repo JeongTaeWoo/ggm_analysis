@@ -183,31 +183,29 @@ def fit_gm(age, Dx, Ex, bounds=[(0, 0.0005), (0.01, 0.5), (0.000001, 0.05)]):
     )
     return result   
 
-def fit_ggm(age, Dx, Ex, bounds, init_params = None, 
+def fit_ggm(age, Dx, Ex, bounds = None, init_params = None, best_logL_gm = None,
             n = 100, meaningless = True, notice = False,
-            weight_func = None, weight_params = None, best_neg_logL = None,
-            use_rmse_filter = False, rmse_filter_params = None,
+            weight_func = None, weight_params = None, best_logL_ggm = None,
+            use_rmse_filter = True, rmse_filter_params = None,
             opt_func = "differential_evolution") :
     # 경계 설정
-    if bounds is None : bounds = [(0.000005, 0.0005), (0.05, 0.3), (0.07, 0.2), (0.00001, 0.05)]
-
+    if bounds is None : bounds = [(0.000005, 0.0005), (0.05, 0.2), (0.07, 0.2), (0.00001, 0.05)]
+    
+    best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
+    best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
     epsilon = 1e-7
     best_result = None
-    best_neg_logL = best_neg_logL if best_neg_logL is not None else np.inf
+
     no_improve_count = 0
     boundary_issue_count = 0
     rmse_issue_count = 0
     logL_issue_count = 0
-
-    result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
-    logL_gm = -result_gm.fun
     
     neg_log_likelihood = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, 
                                                 weight_func = weight_func,
                                                 weight_params = weight_params)
     
     for i in trange(n, desc = "GGM 적합 진행중") :
-            
         try :
             result = run_optimizer(opt_func, neg_log_likelihood, bounds, init_params)    
         except Exception as e :
@@ -218,7 +216,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
         neg_log_likelihood_pure = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, weight_func = None)
         logL_ggm_pure = -neg_log_likelihood_pure(result.x)
         
-        if logL_ggm_pure < logL_gm :
+        if logL_ggm_pure < best_logL_gm :
             logL_issue_count += 1
             continue
 
@@ -232,7 +230,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             boundary_issue_count += 1
             continue  
         
-        if result.fun < best_neg_logL :
+        if logL_ggm_pure > best_logL_ggm :
             if use_rmse_filter :
                 filter_params = rmse_filter_params if rmse_filter_params is not None else {}
                 rmse_threshold = filter_params.pop('rmse_threshold', 0.05)
@@ -242,8 +240,10 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
             if rmse_score > rmse_threshold :
                 if notice : rmse_issue_count += 1
                 continue    
+
+            best_result = result
+            best_logL_ggm = logL_ggm_pure # best logL 업데이트
             
-            best_result, best_neg_logL = result , result.fun
             no_improve_count = 0
             if notice :
                 print(f"{i + 1} 번째 시도:  {result.x}")  
@@ -260,7 +260,7 @@ def fit_ggm(age, Dx, Ex, bounds, init_params = None,
     
     return best_result
 
-def fitted_plot(ggm_params, gm_params, mu_obs, age):
+def draw_fitted_plot(ggm_params, gm_params, mu_obs, age):
     a_gm, b_gm, c_gm = gm_params
     fitted_mu_ggm, _ = calc_ggm(ggm_params, age)
     fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
@@ -311,74 +311,12 @@ def calc_ggm(params, age):
 
     x_star = (1 / b) * np.log(log_argument)  
 
-    return fitted_mu, x_star
-
-    
-def run_batch(years, sex, df, output_path, trial = 100, 
-            use_weights = True, use_rmse_filter = True,
-            center = 80, scale = 3, max_weight = 5, threshold = 0.005,
-            opt_func = "differential_evolution") :
-    """
-    여러 연도와 성별에 대해 GGM과 GM 모델을 적합하고 결과를 CSV로 저장
-
-    Parameters:
-        years: iterable of int
-        sex: '남자' or '여자' or '전체'
-        output_path: 결과 CSV 경로
-    """
-    records = []
-    
-    for year in years:
-        # 연도별 lx, Ex 불러오기
-        print(f"{year}년 시작")
-        year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
-        
-        weight_func = weight_sigmoid if use_weights else None
-        weight_params = {'center' : center, 'scale' : scale, 'max_weight' : max_weight}
-        function_params = {'center' : center, 'scale' : scale, 
-                            'max_weight' : max_weight, 'rmse_threshold' : threshold}
-        
-        # GGM 적합
-        result = fit_ggm(age, Dx, Ex, n = trial, notice = True, 
-                            weight_func = weight_func,
-                            weight_params = weight_params,
-                            use_rmse_filter = use_rmse_filter, 
-                            rmse_filter_params = function_params,
-                            opt_func = opt_func)
-        
-        if result and result.success:
-            a, b, gamma, c = result.x
-            fitted_mu, x_star = calc_ggm(result.x, age)
-            
-        # 결과 레코드 생성
-        base = {'sex': sex,
-                'year': year,
-                'a': a, 'b': b, 'gamma': gamma, 'c': c, 
-                'x*': x_star}
-        
-        for idx, age_val in enumerate(age):
-            base[f'fitted_ggm_{int(age_val)}'] = fitted_mu[idx]
-        records.append(base)
-        print(f"{year}년 끝")
-            
-    df_out = pd.DataFrame.from_records(records)
-    df_out.to_csv(output_path, index=False, encoding = 'utf-8-sig')
-    print(f"Results saved to {output_path}")        
+    return fitted_mu, x_star    
     
     
-def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice = True,
-            center = 90, scale = 3, max_weight = 5, threshold = 0.005, show_graph = True,
-            result_path = None, opt_func = "differential_evolution", fallback_filepath = None):
-    records = []
+def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice_bool = True,
+            center = 90, scale = 3, max_weight = 5, threshold = 0.005, opt_func = "differential_evolution"):
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
-
-    # 기존 결과 불러오기 시도
-    try:
-        scale_row = get_scale_data_from_file(result_path, year, sex)
-        best_logL_ggm = scale_row['logL_ggm'] if scale_row['logL_ggm'] is not None else -np.inf
-    except Exception as e:
-        print(f"기존 결과 불러오기 실패: {e}")
-        best_logL_ggm = -np.inf
 
     weight_func = weight_sigmoid if use_weights else None
     weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight}
@@ -386,7 +324,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
                         'max_weight': max_weight, 'rmse_threshold': threshold}
 
     # GGM 적합
-    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = notice, bounds = None,
+    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = notice_bool, bounds = None,
                         weight_func = weight_func, 
                         weight_params = weight_params,
                         use_rmse_filter = use_rmse_filter,
@@ -399,7 +337,7 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         logL_ggm_pure = -make_neg_log_likelihood(Dx, Ex, age, weight_func=None)(result_ggm.x)
     else:
         if fallback_filepath:
-            scale_row = get_scale_data_from_file(fallback_filepath, year, sex)
+            scale_row = get_data_from_file(fallback_filepath, year, sex)
             a, b, gamma, c = scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']
             fitted_mu, x_star = calc_ggm([a, b, gamma, c], age)
             result_ggm = result_maker(a, b, gamma, c)
@@ -409,32 +347,12 @@ def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = T
         else:
             raise RuntimeError("GGM 적합 실패 및 fallback 파일 없음")
 
-    # GM 결과 생성
-    result_gm = fit_gm(age = age, Dx = Dx, Ex = Ex)
-    a_gm, b_gm, c_gm = result_gm.x
-
-    if notice:
-        print("GGM 로그우도:", logL_ggm_pure)
-        print("GM 로그우도:", -result_gm.fun)
-        print("추정 결과:")
-        print(f"a     = {a:.15f}")
-        print(f"b     = {b:.15f}")
-        print(f"gamma = {gamma:.15f}")
-        print(f"c     = {c:.15f}")
-        print("추정된 감속 나이 x* =", round(x_star, 2), "세")
-        print(f"a_gm     = {a_gm:.15f}")
-        print(f"b_gm     = {b_gm:.15f}")
-        print(f"c_gm     = {c_gm:.15f}")
-
-    if show_graph:
-        fitted_plot([a, b, gamma, c], result_gm.x, observed_mu, age)
-
     # 기존보다 개선된 경우만 저장할 데이터 구성
     best_result = result_ggm
     best_logL = logL_ggm_pure
     best_scale_params = {'center': center, 'scale': scale, 'max_weight': max_weight}
 
-    return best_result, best_logL, best_scale_params, result_gm
+    return best_result, best_logL, best_scale_params
     
 def replace_result_for_year(year, sex, new_row, result_path):
     """
@@ -501,7 +419,7 @@ def draw_LAR (params, age):
     plt.show()
     
 def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath,
-                    best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True) :
+                    best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True, threshold = 0.005) :
     
     result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
     best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
@@ -539,8 +457,11 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         max_weight = random.choice(max_weight_candidates)
         
         try:
-            result_ggm = run_test(year = year, sex = sex, df = df, trial = trial, notice = False,
-                                center = center, scale = scale, max_weight = max_weight, show_graph = False)
+            result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = False, bounds = None, best_logL_gm = best_logL_gm,
+                            weight_func = weight_sigmoid,
+                            weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight},
+                            rmse_filter_params = {'center': center, 'scale': scale, 'max_weight': max_weight, 'rmse_threshold': threshold},
+                            opt_func = "differential_evolution")
         except Exception as e:
             print(f"적합 실패: {e}")
             fitting_fail_count += 1
@@ -551,11 +472,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         if logL_ggm_pure > best_logL_ggm :
             improve_count += 1
             best_logL_ggm = logL_ggm_pure
-            best_scale_params = {
-                "center": center,
-                "scale": scale,
-                "max_weight": max_weight
-            }
+            best_scale_params = { "center": center, "scale": scale, "max_weight": max_weight}
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x        
 
@@ -564,11 +481,11 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
     else:
         if filepath is None:
             raise ValueError("개선 실패 시 기존 파라미터를 불러오기 위해 filepath 인자가 필요합니다.")
-        scale_row = get_scale_data_from_file(filepath, year, sex)
+        scale_row = get_data_from_file(filepath, year, sex)
         ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
 
     if show_graph :
-        fitted_plot(ggm_params, result_gm.x, observed_mu, age)
+        draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age)
 
     if improve_count > 0:
         print(improve_count, "회 개선 성공")
@@ -592,7 +509,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
 # TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
 
-def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_params, year, sex, filepath):
+def save_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_params, year, sex, filepath):
 
     # 최적 GGM 파라미터 및 가중치 파라미터를 엑셀로 저장
 
@@ -631,7 +548,7 @@ def save_scale_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_
     updated_data.to_excel(filepath, index=False)    
 
 
-def get_scale_data_from_file(filepath, year, sex, default_value = None):
+def get_data_from_file(filepath, year, sex, default_value = None):
     """
     결과 파일에서 (year, sex)에 해당하는 데이터를 딕셔너리로 반환합니다.
     - 해당 데이터가 없으면 default_values를 기반으로 생성된 dict를 반환합니다.
