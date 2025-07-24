@@ -476,13 +476,34 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x        
 
-    if improve_count > 0:
-        ggm_params = best_result.x
+    update_values = None
+    if improve_count > 0 :
+        a, b, gamma, c = best_result.x
+        center = best_scale_params['center']
+        scale = best_scale_params['scale']
+        max_weight = best_scale_params['max_weight']
+        fitted_mu, x_star = calc_ggm(best_result.x, age)
+        a_gm, b_gm, c_gm = result_gm.x
+        update_values = {
+            "a": a, "b": b, "gamma": gamma, "c": c,
+            "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
+            "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun
+        }
+
+    elif -result_gm.fun > best_logL_gm : 
+        a_gm, b_gm, c_gm = result_gm.x
+        update_values = {
+            "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun
+        }
     else:
         if filepath is None:
             raise ValueError("개선 실패 시 기존 파라미터를 불러오기 위해 filepath 인자가 필요합니다.")
         scale_row = get_data_from_file(filepath, year, sex)
         ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
+
+    if update_values : # 결과에 맞게 유동적으로 엑셀에 저장
+        save_result_to_excel(update_values, year, sex, filepath)
+
 
     if show_graph :
         draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age)
@@ -507,26 +528,10 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
 
-# TODO 단순 logL뿐만 아니라 AICc같은 것도 비교해야 할듯... 근데 뭘 써야할지 잘 모르겠음
 
-def save_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_params, year, sex, filepath):
+def save_result_to_excel(update_values: dict, year, sex, filepath):
 
-    # 최적 GGM 파라미터 및 가중치 파라미터를 엑셀로 저장
-
-    a, b, gamma, c = result_ggm.x
-    center = best_scale_params['center']
-    scale = best_scale_params['scale']
-    max_weight = best_scale_params['max_weight']
-    fitted_mu_ggm, x_star = calc_ggm(result_ggm.x, age)
-    a_gm, b_gm, c_gm = result_gm.x
-
-    # 저장할 데이터프레임 구성
-    new_data = pd.DataFrame([{
-        "year": year, "sex": sex, "a": a, "b": b, "gamma": gamma, "c": c,
-        "logL_ggm": logL_ggm_pure, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
-        "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm" : -result_gm.fun
-    }])
-
+    # 기존 데이터 불러오기
     if os.path.exists(filepath):
         try:
             existing_data = pd.read_excel(filepath)
@@ -536,16 +541,21 @@ def save_result_to_excel(result_ggm, result_gm, logL_ggm_pure, best_scale_params
     else:
         existing_data = pd.DataFrame()
 
-    # 기존에 동일한 year & sex가 있다면 삭제 후 새로 추가
-    if not existing_data.empty:
-        mask = (existing_data['year'] == year) & (existing_data['sex'] == sex)
-        existing_data = existing_data[~mask]
+    mask = (existing_data['year'] == year) & (existing_data['sex'] == sex)
 
-    # 데이터 합치기
-    updated_data = pd.concat([existing_data, new_data], ignore_index = True)
+    if mask.any():
+        # 기존 행이 있으면 해당 컬럼만 업데이트
+        for key, value in update_values.items():
+            existing_data.loc[mask, key] = value
+        updated_data = existing_data
+    else:
+        # 없으면 새 행 추가
+        new_row = {'year': year, 'sex': sex}
+        new_row.update(update_values)
+        updated_data = pd.concat([existing_data, pd.DataFrame([new_row])], ignore_index=True)
 
     # 저장
-    updated_data.to_excel(filepath, index=False)    
+    updated_data.to_excel(filepath, index=False)
 
 
 def get_data_from_file(filepath, year, sex, default_value = None):
