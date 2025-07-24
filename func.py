@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import os
 from tqdm import trange
 import xlsxwriter
+import traceback
 
 age = np.arange(65, 100, dtype = float)  # 65세부터 99세까지 기본값 설정
 Dx = None; Ex = None
@@ -314,46 +315,6 @@ def calc_ggm(params, age):
     return fitted_mu, x_star    
     
     
-def run_test(year, sex, df, trial = 100, use_weights = True, use_rmse_filter = True, notice_bool = True,
-            center = 90, scale = 3, max_weight = 5, threshold = 0.005, opt_func = "differential_evolution"):
-    year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
-
-    weight_func = weight_sigmoid if use_weights else None
-    weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight}
-    function_params = {'center': center, 'scale': scale, 
-                        'max_weight': max_weight, 'rmse_threshold': threshold}
-
-    # GGM 적합
-    result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = notice_bool, bounds = None,
-                        weight_func = weight_func, 
-                        weight_params = weight_params,
-                        use_rmse_filter = use_rmse_filter,
-                        rmse_filter_params = function_params,
-                        opt_func = opt_func)
-
-    if result_ggm and result_ggm.success:
-        a, b, gamma, c = result_ggm.x
-        fitted_mu, x_star = calc_ggm(result_ggm.x, age)
-        logL_ggm_pure = -make_neg_log_likelihood(Dx, Ex, age, weight_func=None)(result_ggm.x)
-    else:
-        if fallback_filepath:
-            scale_row = get_data_from_file(fallback_filepath, year, sex)
-            a, b, gamma, c = scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']
-            fitted_mu, x_star = calc_ggm([a, b, gamma, c], age)
-            result_ggm = result_maker(a, b, gamma, c)
-            logL_ggm_pure = scale_row['logL_ggm'] if scale_row['logL_ggm'] is not None else -np.inf
-            if notice:
-                print("GGM 적합 실패 → 기존 파라미터로 대체")
-        else:
-            raise RuntimeError("GGM 적합 실패 및 fallback 파일 없음")
-
-    # 기존보다 개선된 경우만 저장할 데이터 구성
-    best_result = result_ggm
-    best_logL = logL_ggm_pure
-    best_scale_params = {'center': center, 'scale': scale, 'max_weight': max_weight}
-
-    return best_result, best_logL, best_scale_params
-    
 def replace_result_for_year(year, sex, new_row, result_path):
     """
     기존 결과 파일에서 특정 연도(year), 성별(sex)의 결과만 새로 교체함
@@ -427,10 +388,15 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
     best_result = None; best_scale_params = None
     improve_count = 0
     fitting_fail_count = 0
+    gm_improve_bool = False
+    update_values = None
+    required_keys = ['a', 'b', 'gamma', 'c']
+
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
 
     if -result_gm.fun > best_logL_gm :
         best_logL_gm = -result_gm.fun
+        gm_improve_bool = True
         print("GM 개선 성공")
     else: 
         print("GM 개선 실패")
@@ -462,8 +428,12 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
                             weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight},
                             rmse_filter_params = {'center': center, 'scale': scale, 'max_weight': max_weight, 'rmse_threshold': threshold},
                             opt_func = "differential_evolution")
+            if result_ggm is None or not result_ggm.success :
+                fitting_fail_count += 1
+                continue
         except Exception as e:
-            print(f"적합 실패: {e}")
+            print(f"적합 중 오류 발생: {e}")
+            traceback.print_exc()
             fitting_fail_count += 1
             continue
         
@@ -476,9 +446,9 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             best_result = result_ggm
             a_best, b_best, gamma_best, c_best = best_result.x        
 
-    update_values = None
-    if improve_count > 0 :
+    if improve_count > 0 and gm_improve_bool == True: 
         a, b, gamma, c = best_result.x
+        ggm_params = [a, b, gamma, c]
         center = best_scale_params['center']
         scale = best_scale_params['scale']
         max_weight = best_scale_params['max_weight']
@@ -489,23 +459,40 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
             "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun
         }
-
-    elif -result_gm.fun > best_logL_gm : 
+    elif improve_count > 0 and gm_improve_bool == False :
+        a, b, gamma, c = best_result.x
+        ggm_params = [a, b, gamma, c]
+        center = best_scale_params['center']
+        scale = best_scale_params['scale']
+        max_weight = best_scale_params['max_weight']
+        fitted_mu, x_star = calc_ggm(best_result.x, age)
+        update_values = {
+            "a": a, "b": b, "gamma": gamma, "c": c,
+            "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star
+        }    
+    elif improve_count == 0 and gm_improve_bool == True : 
+        scale_row = get_data_from_file(filepath, year, sex)
+        if scale_row is not None and all(k in scale_row and scale_row[k] is not None for k in required_keys):
+            ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]  
+        else: 
+            ggm_params = None    
         a_gm, b_gm, c_gm = result_gm.x
         update_values = {
             "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun
         }
     else:
         if filepath is None:
-            raise ValueError("개선 실패 시 기존 파라미터를 불러오기 위해 filepath 인자가 필요합니다.")
+            raise ValueError("filepath error")
         scale_row = get_data_from_file(filepath, year, sex)
-        ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
+        if scale_row is not None and all(k in scale_row and scale_row[k] is not None for k in required_keys):
+            ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]  
+        else: 
+            ggm_params = None
 
-    if update_values : # 결과에 맞게 유동적으로 엑셀에 저장
+    if update_values is not None : # 결과에 맞게 유동적으로 엑셀에 저장
         save_result_to_excel(update_values, year, sex, filepath)
 
-
-    if show_graph :
+    if show_graph and ggm_params is not None:
         draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age)
 
     if improve_count > 0:

@@ -1,3 +1,4 @@
+import traceback
 import pandas as pd
 import func
 from pathlib import Path
@@ -14,7 +15,7 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2011, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2019, sex = "남자")
 
 #--------------------
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
@@ -25,16 +26,14 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2011, sex = "�
 # func.save_result_to_excel(best_result, result_gm, best_logL, best_scale_params, year, sex, filepath = output_path_result)
 #--------------------
 # TODO fit_ggm 함수의 weight_params랑 rmse_params 같은 dict에서 참조하게 하도록 만들기
-# TODO run_test 하는거 없으면 지우기
 # TODO AICc 같은 지표들 계산하는 함수 만들어서 비교하고 엑셀에 저장하게 만들기 (find_best_scale 내부에서 호출한 뒤에 결과 받으면 될듯)
-# TODO GM 개선이 성공했으면 bool = True로 하고, GGM도 마찬가지로 한 다음에 마지막에 각 bool들에 따라서 데이터 어떻게 저장할지 결정해야함. 
-# TODO 현재 GM결과를 무조건 최신으로 저장하는거 같으니 검토해야 함. 
+# TODO GM 저장까진 잘 되는데 마지막에 [개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.]라고 뜨고 그래프는 안나오는 현상 수정하기
 #--------------------
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 20,
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex) ; print(previous_result)
-    best_result, best_logL, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 10, 
-                        center_range = 90, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1), n_runs = 1,
+    func.find_best_scale(year = year, sex = sex, trial = 10, n_runs = 10,
+                        center_range = 90, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1),
                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result,
                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
@@ -42,6 +41,7 @@ except AttributeError as e:
     print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
 except Exception as e:
+    traceback.print_exc()
     print(f"알 수 없는 오류 발생: {e}")     
 
 finally: 
