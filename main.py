@@ -15,19 +15,21 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2017, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2016, sex = "남자")
 
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가?
 # TODO 각 metrics 지표별 등급까지 엑셀에 저장?
 # TODO GM과 AIC, AICc, BIC까지?
+
+# TODO 엑셀 업데이트 많이 됐으니까 엑셀 읽어다가 그래프 그려주고 + metrics 보여주는 함수 만들기
 #--------------------
 # center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1)
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year = year, sex = sex, trial = 10, n_runs = 10,
-                        center_range = 91, scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1),
+    func.find_best_scale(year = year, sex = sex, trial = 50, n_runs = 50,
+                        center_range = (90, 91, 1), scale_range = (7, 9.1, 0.5), max_weight_range = (10, 20, 1),
                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result,
                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
