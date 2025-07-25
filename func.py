@@ -261,7 +261,7 @@ def fit_ggm(age, Dx, Ex, bounds = None, init_params = None, best_logL_gm = None,
     
     return best_result
 
-def draw_fitted_plot(ggm_params, gm_params, mu_obs, age):
+def draw_fitted_plot(ggm_params, gm_params, mu_obs, age, year = None, sex = None):
     a_gm, b_gm, c_gm = gm_params
     fitted_mu_ggm, _ = calc_ggm(ggm_params, age)
     fitted_mu_gm = a_gm * np.exp(b_gm * age) + c_gm
@@ -271,7 +271,13 @@ def draw_fitted_plot(ggm_params, gm_params, mu_obs, age):
     plt.plot(age, fitted_mu_gm, label='Fitted GM', linestyle=':')
     plt.xlabel('Age')
     plt.ylabel('Mortality Rate')
-    plt.title('Gamma-Gompertz-Makeham Fit')
+    if year or sex is None :
+        plt.title('GGM Fit Result')
+    elif year and sex is not None :
+        if sex == '남자' :
+            plt.title(f'GGM Fit Result ({year}, Male)')
+        elif sex == '여자' :
+            plt.title(f'GGM Fit Result ({year}, Female)')
     plt.legend()
     plt.grid(True)
     plt.show()
@@ -379,6 +385,42 @@ def draw_LAR (params, age):
     plt.grid(True)
     plt.show()
     
+
+def evaluate_fit_metrics(observed_mu, fitted_mu, epsilon = 1e-8, precision = 6, notice = True) :
+    observed_mu = np.array(observed_mu)
+    fitted_mu = np.array(fitted_mu)
+    # 안정화 (0분모 방지)
+    observed_mu_safe = np.where(observed_mu == 0, epsilon, observed_mu)
+
+    rmse = np.sqrt(np.mean((observed_mu - fitted_mu) ** 2))
+    mae = np.mean(np.abs(observed_mu - fitted_mu))
+    mape = np.mean(np.abs((observed_mu - fitted_mu) / observed_mu)) * 100  # 퍼센트 오차
+
+    metrics = {
+        "rmse": rmse,
+        "mae": mae,
+        "mape": mape,
+    }
+
+    if notice:
+        print("\n[적합 품질 평가]")
+        # RMSE 평가
+        if rmse <= 0.01: print(f"RMSE: {metrics['rmse']} → 매우 좋음")
+        elif rmse <= 0.03: print(f"RMSE: {metrics['rmse']} → 무난")
+        else: print(f"RMSE: {metrics['rmse']} → 별로")
+        # MAE
+        if mae <= 0.01: print(f"MAE: {metrics['mae']} → 매우 좋음")
+        elif mae <= 0.03: print(f"MAE: {metrics['mae']} → 무난")
+        else: print(f"MAE: {metrics['mae']} → 별로")
+        # MAPE 평가
+        if mape <= 5: print(f"MAPE: {metrics['mape']}% → 매우 좋음")
+        elif mape <= 10: print(f"MAPE: {metrics['mape']}% → 무난")
+        else: print(f"MAPE: {metrics['mape']}% → 별로")
+        print("-----------------------------")
+
+    return {k: round(v, precision) for k, v in metrics.items()}
+
+
 def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath,
                     best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True, threshold = 0.005) :
     
@@ -454,10 +496,12 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         max_weight = best_scale_params['max_weight']
         fitted_mu, x_star = calc_ggm(best_result.x, age)
         a_gm, b_gm, c_gm = result_gm.x
+
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu)
         update_values = {
             "a": a, "b": b, "gamma": gamma, "c": c,
             "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
-            "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun
+            "a_gm": a_gm, "b_gm": b_gm, "c_gm": c_gm, "logL_gm": -result_gm.fun, **metrics
         }
     elif improve_count > 0 and gm_improve_bool == False :
         a, b, gamma, c = best_result.x
@@ -466,13 +510,15 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         scale = best_scale_params['scale']
         max_weight = best_scale_params['max_weight']
         fitted_mu, x_star = calc_ggm(best_result.x, age)
+
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu)
         update_values = {
             "a": a, "b": b, "gamma": gamma, "c": c,
-            "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star
+            "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star, **metrics
         }    
     elif improve_count == 0 and gm_improve_bool == True : 
         scale_row = get_data_from_file(filepath, year, sex)
-        if scale_row is not None and all(k in scale_row and scale_row[k] is not None for k in required_keys):
+        if scale_row is not None and all((k in scale_row) and (scale_row[k]) is not None for k in required_keys):
             ggm_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]  
         else: 
             ggm_params = None    
@@ -491,9 +537,12 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
     if update_values is not None : # 결과에 맞게 유동적으로 엑셀에 저장
         save_result_to_excel(update_values, year, sex, filepath)
+        print("결과 저장 성공")
+    else : 
+        print("결과 개선 실패")
 
     if show_graph and ggm_params is not None:
-        draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age)
+        draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age, year = year, sex = sex)    
 
     if improve_count > 0:
         print(improve_count, "회 개선 성공")
@@ -508,10 +557,10 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         print(f"b     = {b_best:.10f}")
         print(f"gamma = {gamma_best:.10f}")
         print(f"c     = {c_best:.10f}")
-
-    else:
+    elif improve_count == 0 and ggm_params is not None:
         print("개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.")
-
+    elif improve_count == 0 and ggm_params is None:
+        print("개선 실패: 기존 GGM 파라미터가 없으므로 그래프 생략")    
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
 
