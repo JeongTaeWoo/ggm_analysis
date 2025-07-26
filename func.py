@@ -421,7 +421,7 @@ def evaluate_fit_metrics(observed_mu, fitted_mu, epsilon = 1e-8, precision = 6, 
     return {k: round(v, precision) for k, v in metrics.items()}
 
 
-def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath,
+def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath, notice = True,
                     best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True, threshold = 0.005) :
     
     result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
@@ -466,7 +466,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         
         try:
             result_ggm = fit_ggm(age, Dx, Ex, n = trial, notice = False, bounds = None, best_logL_gm = best_logL_gm,
-                            weight_func = weight_sigmoid,
+                            weight_func = weight_sigmoid, meaningless = False,
                             weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight},
                             rmse_filter_params = {'center': center, 'scale': scale, 'max_weight': max_weight, 'rmse_threshold': threshold},
                             opt_func = "differential_evolution")
