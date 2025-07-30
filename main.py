@@ -19,7 +19,9 @@ output_path_result = base_dir / "측정 결과.xlsx"
 year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2017, sex = "남자")
 
 #--------------------
-# TODO evaluate_fit_metrics에 항목 추가?
+# TODO evaluate_fit_metrics에 항목 추가? 어떤거?
+
+# TODO LAR 가지고도 뭔가 할수있을까?
 
 # TODO 논문 읽었던거 내용 간단하게라도 정리해서 모아두기
 
