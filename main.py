@@ -16,7 +16,7 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2004, sex = "여자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2015, sex = "남자")
 
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가? 어떤거?
@@ -32,8 +32,8 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2004, sex = "�
 
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year = year, sex = sex, trial = 500, n_runs = 2,
-                        center_range = 89, scale_range = 4, max_weight_range = 7,
+    func.find_best_scale(year = year, sex = sex, trial = 1000, n_runs = 3,
+                        center_range = 91, scale_range = 4, max_weight_range = 8,
                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True,
                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 

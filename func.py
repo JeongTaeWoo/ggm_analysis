@@ -557,6 +557,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         print(f"center     = {best_scale_params['center']}")
         print(f"scale      = {best_scale_params['scale']}")
         print(f"max_weight = {best_scale_params['max_weight']}")
+        print(f"x* = {x_star:2f}세")
         print("---------------------------")
         a_best, b_best, gamma_best, c_best = best_result.x
         print(f"a     = {a_best:.10f}")
@@ -564,11 +565,13 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         print(f"gamma = {gamma_best:.10f}")
         print(f"c     = {c_best:.10f}")
     elif improve_count == 0 and fitting_fail_count != n_runs:
-        print(f"이번 시행의 최고 로그우도 : {temp_best_logL_ggm}")
+        print(f"이번 시행의 최고 로그우도와 기존 값의 차이 : {best_logL_ggm - temp_best_logL_ggm}")
         print("이번 시행의 최적 scale:")
         print(f"center     = {temp_best_scale_params['center']}")
         print(f"scale      = {temp_best_scale_params['scale']}")
         print(f"max_weight = {temp_best_scale_params['max_weight']}")
+        if scale_row['x*'] is not None : 
+            print(f"x* = {scale_row['x*']:.2f}세")
         if ggm_params is not None :
             print("개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.")
         elif ggm_params is None : 
