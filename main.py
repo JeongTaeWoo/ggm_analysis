@@ -32,8 +32,8 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2016, sex = "ë
 
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year = year, sex = sex, trial = 1000, n_runs = 10,
-                        center_range = 91, scale_range = 4, max_weight_range = 8,
+    func.find_best_scale(year = year, sex = sex, trial = 1000, n_runs = 5,
+                        center_range = 91, scale_range = 4, max_weight_range = 10,
                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True,
                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
