@@ -16,24 +16,24 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2016, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2019, sex = "여자")
 
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가? 어떤거?
 
-# TODO LAR 가지고도 뭔가 할수있을까?
-
 # TODO 논문 읽었던거 내용 간단하게라도 정리해서 모아두기 - 진행중
 
 # TODO 엑셀 업데이트 많이 됐으니까 엑셀 읽어다가 그래프 그려주고 + metrics 보여주는 함수 만들기
+
+# TODO 이것저것 개선은 했는데 여전히 여자 데이터 결과가 안좋음. scale parameter 다시한번 찾아보기
 #--------------------
 # center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1)
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
 
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year = year, sex = sex, trial = 1000, n_runs = 5,
-                        center_range = 91, scale_range = 4, max_weight_range = 10,
+    func.find_best_scale(year = year, sex = sex, trial = 1000, n_runs = 1,
+                        center_range = 87, scale_range = 4, max_weight_range = 9,
                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True,
                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
