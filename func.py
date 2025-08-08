@@ -186,7 +186,7 @@ def fit_gm(age, Dx, Ex, bounds=[(1e-7, 1e-3), (0.01, 0.3), (1e-6, 1e-3)]):
 def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = None,
             n = 100, meaningless = True, notice_issue = False, notice_trange = False,
             weight_func = None, weight_params = None, best_logL_ggm = None,
-            use_rmse_filter = True, rmse_filter_params = None,
+            use_rmse_filter = True, rmse_filter_params = None, compare_gm = False,
             opt_func = "differential_evolution") :
     # 경계 설정
     if bounds is None : 
@@ -223,7 +223,7 @@ def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = 
         if logL_ggm_pure > best_logL_ggm_temp :
             best_logL_ggm_temp = logL_ggm_pure
 
-        if logL_ggm_pure < best_logL_gm :
+        if compare_gm and logL_ggm_pure < best_logL_gm :
             logL_issue_count += 1
             continue
 
@@ -427,7 +427,7 @@ def evaluate_fit_metrics(observed_mu, fitted_mu, epsilon = 1e-8, precision = 6, 
     return {k: round(v, precision) for k, v in metrics.items()}
 
 
-def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath, notice = True,
+def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath, notice = True, compare_gm = False,
                     best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True, threshold = 0.005) :
     
     result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
@@ -449,9 +449,9 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
     if -result_gm.fun > best_logL_gm :
         best_logL_gm = -result_gm.fun
         gm_improve_bool = True
-        print("GM 개선 성공")
+        if notice: print("GM 개선 성공")
     else: 
-        print("GM 개선 실패")
+        if notice: print("GM 개선 실패")
 
     if isinstance(center_range, (tuple, list)):
         center_candidates = list(range(center_range[0], center_range[1] + 1, center_range[2]))
@@ -477,7 +477,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         try:
             result_ggm, best_logL_ggm_worse_than_gm = fit_ggm(age, Dx, Ex, sex, n = trial, bounds = None, best_logL_gm = best_logL_gm,
                             weight_func = weight_sigmoid, meaningless = False, notice_trange = notice,
-                            weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight},
+                            weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight}, compare_gm = compare_gm,
                             rmse_filter_params = {'center': center, 'scale': scale, 'max_weight': max_weight, 'rmse_threshold': threshold},
                             opt_func = "differential_evolution")
             if result_ggm is None or not result_ggm.success :
@@ -513,7 +513,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         fitted_mu, x_star = calc_ggm(best_result.x, age)
         a_gm, b_gm, c_gm = result_gm.x
 
-        metrics = evaluate_fit_metrics(observed_mu, fitted_mu)
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu, notice = notice)
         update_values = {
             "a": a, "b": b, "gamma": gamma, "c": c,
             "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star,
@@ -527,7 +527,7 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         max_weight = best_scale_params['max_weight']
         fitted_mu, x_star = calc_ggm(best_result.x, age)
 
-        metrics = evaluate_fit_metrics(observed_mu, fitted_mu)
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu, notice = notice)
         update_values = {
             "a": a, "b": b, "gamma": gamma, "c": c,
             "logL_ggm": best_logL_ggm, "center": center, "scale": scale, "max_weight": max_weight, "x*": x_star, **metrics
@@ -553,43 +553,44 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
     if update_values is not None : # 결과에 맞게 유동적으로 엑셀에 저장
         save_result_to_excel(update_values, year, sex, filepath)
-        print("결과 저장 성공")
+        if notice: print("결과 저장 성공")
     else : 
-        print("결과 개선 실패")
+        if notice: print("결과 개선 실패")
 
     if show_graph and ggm_params is not None:
         draw_fitted_plot(ggm_params, result_gm.x, observed_mu, age, year = year, sex = sex)    
 
-    if improve_count > 0:
-        print(improve_count, "회 개선 성공")
-        print(f"최고 로그우도 : {best_logL_ggm}")
-        print("최적 scale:")
-        print(f"center     = {best_scale_params['center']}")
-        print(f"scale      = {best_scale_params['scale']}")
-        print(f"max_weight = {best_scale_params['max_weight']}")
-        print(f"x* = {x_star:2f}세")
-        print("---------------------------")
-        a_best, b_best, gamma_best, c_best = best_result.x
-        print(f"a     = {a_best:.10f}")
-        print(f"b     = {b_best:.10f}")
-        print(f"gamma = {gamma_best:.10f}")
-        print(f"c     = {c_best:.10f}")
-    elif improve_count == 0 and fitting_fail_count != n_runs:
-        print(f"이번 시행의 최고 로그우도와 기존 값의 차이 : {best_logL_ggm - temp_best_logL_ggm}")
-        print("이번 시행의 최적 scale:")
-        print(f"center     = {temp_best_scale_params['center']}")
-        print(f"scale      = {temp_best_scale_params['scale']}")
-        print(f"max_weight = {temp_best_scale_params['max_weight']}")
-        if scale_row['x*'] is not None : 
-            print(f"x* = {scale_row['x*']:.2f}세")
-        if ggm_params is not None :
-            print("개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.")
-        elif ggm_params is None : 
-            ("개선 실패: 기존 GGM 파라미터가 없으므로 그래프 생략")     
-    
-    elif improve_count == 0 and fitting_fail_count == n_runs :
-        print("GM보다 나은 결과를 한 번도 얻지 못했음")
-        print(f"이번 시행의 최고 로그우도와 GM 값의 차이 : {best_logL_gm - temp_best_logL_ggm_worse_than_gm}")
+    if show_graph :
+        if improve_count > 0:
+            print(improve_count, "회 개선 성공")
+            print(f"최고 로그우도 : {best_logL_ggm}")
+            print("최적 scale:")
+            print(f"center     = {best_scale_params['center']}")
+            print(f"scale      = {best_scale_params['scale']}")
+            print(f"max_weight = {best_scale_params['max_weight']}")
+            print(f"x* = {x_star:2f}세")
+            print("---------------------------")
+            a_best, b_best, gamma_best, c_best = best_result.x
+            print(f"a     = {a_best:.10f}")
+            print(f"b     = {b_best:.10f}")
+            print(f"gamma = {gamma_best:.10f}")
+            print(f"c     = {c_best:.10f}")
+        elif improve_count == 0 and fitting_fail_count != n_runs:
+            print(f"이번 시행의 최고 로그우도와 기존 값의 차이 : {best_logL_ggm - temp_best_logL_ggm}")
+            print("이번 시행의 최적 scale:")
+            print(f"center     = {temp_best_scale_params['center']}")
+            print(f"scale      = {temp_best_scale_params['scale']}")
+            print(f"max_weight = {temp_best_scale_params['max_weight']}")
+            if scale_row['x*'] is not None : 
+                print(f"x* = {scale_row['x*']:.2f}세")
+            if ggm_params is not None :
+                print("개선 실패: 기존 GGM 파라미터로 그래프만 출력했습니다.")
+            elif ggm_params is None : 
+                ("개선 실패: 기존 GGM 파라미터가 없으므로 그래프 생략")     
+        
+        elif improve_count == 0 and fitting_fail_count == n_runs :
+            print("GM보다 나은 결과를 한 번도 얻지 못했음")
+            print(f"이번 시행의 최고 로그우도와 GM 값의 차이 : {best_logL_gm - temp_best_logL_ggm_worse_than_gm}")
 
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
