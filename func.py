@@ -71,26 +71,6 @@ def weight_sigmoid(age, center = 90, scale = 3, max_weight = 10):
     """
     return 1 + (max_weight - 1) / (1 + np.exp(-(age - center) / scale))
 
-def weight_rmse(y_obs, y_fit, age, center = 90, scale = 3, max_weight = 10):
-    """
-    sigmoid 가중치를 기반으로 예측값과 실제값 사이의 오차를 강조하여 계산
-    """
-    weights = weight_sigmoid(age, center = center, scale = scale, max_weight = max_weight)
-    return np.sqrt(np.mean(weights * (y_obs - y_fit)**2))
-
-def assess_fit_rmse(params, age, Dx, Ex, center = 90, scale = 3, max_weight = 10):
-    """
-    모델 파라미터와 age, Dx, Ex를 입력받아 RMSE 평가
-    """
-    a, b, gamma, c = params
-    log_num = np.log(a) + b * age
-    log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
-    fitted_mu = np.exp(log_num - log_denom) + c
-    observed = Dx / Ex  # 중앙 사망률 (observed)
-    
-    return weight_rmse(observed, fitted_mu, age, center=center, scale=scale, max_weight=max_weight)
-
-
 # 로그우도 함수 정의
 def make_neg_log_likelihood(Dx, Ex, age, weight_func = None, weight_params = None) :
     def neg_log_likelihood(params):
@@ -144,6 +124,7 @@ def run_optimizer(opt_func, neg_log_likelihood, bounds = None, init_params = Non
             bounds = bounds,
             method = "L-BFGS-B"
         )
+    
     elif opt_func == "dual_annealing":
         return dual_annealing(
             func = neg_log_likelihood,
@@ -185,15 +166,14 @@ def fit_gm(age, Dx, Ex, bounds=[(1e-7, 1e-3), (0.01, 0.3), (1e-6, 1e-3)]):
 
 def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = None,
             n = 100, meaningless = True, notice_issue = False, notice_trange = False,
-            weight_func = None, weight_params = None, best_logL_ggm = None,
-            use_rmse_filter = True, rmse_filter_params = None, compare_gm = False,
+            weight_func = None, weight_params = None, best_logL_ggm = None, compare_gm = False,
             opt_func = "differential_evolution") :
     # 경계 설정
     if bounds is None : 
         if sex == '남자' :
-            bounds = [(1e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)]
+            bounds = [(1e-4, 3e-3), (0.08, 0.14), (0.03, 0.3), (3e-5, 3e-3)]
         elif sex == '여자' :
-            bounds = [(2e-5, 1e-3), (0.08, 0.15), (0.01, 0.3), (3e-4, 3e-3)]    
+            bounds = [(2e-5, 1e-3), (0.08, 0.15), (0.03, 0.3), (3e-4, 3e-3)]    
     
     best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
     best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
@@ -203,11 +183,9 @@ def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = 
 
     no_improve_count = 0
     boundary_issue_count = 0
-    rmse_issue_count = 0
     logL_issue_count = 0
     
-    neg_log_likelihood = make_neg_log_likelihood(Dx = Dx, Ex = Ex, age = age, 
-                                                weight_func = weight_func, weight_params = weight_params)
+    neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, weight_func, weight_params)
     
     for i in trange(n, desc = "GGM 적합 진행중", disable = not notice_trange) :
         try :
@@ -238,16 +216,6 @@ def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = 
             continue  
         
         if logL_ggm_pure > best_logL_ggm :
-            if use_rmse_filter :
-                filter_params = rmse_filter_params if rmse_filter_params is not None else {}
-                rmse_threshold = filter_params.pop('rmse_threshold', 0.05)
-        
-            rmse_score = assess_fit_rmse(params, age, Dx, Ex, **filter_params)
-            
-            if rmse_score > rmse_threshold :
-                if notice_issue : rmse_issue_count += 1
-                continue    
-
             best_result = result
             best_logL_ggm = logL_ggm_pure # best logL 업데이트
             
@@ -263,7 +231,6 @@ def fit_ggm(age, Dx, Ex, sex, bounds = None, init_params = None, best_logL_gm = 
     if notice_issue :
         print(f"logL issue {logL_issue_count}회 발생")    
         print(f"Boundary issue {boundary_issue_count}회 발생")
-        print(f"RMSE issue {rmse_issue_count}회 발생")
     
     return best_result, best_logL_ggm_temp
 
@@ -289,7 +256,7 @@ def draw_fitted_plot(ggm_params, gm_params, mu_obs, age, year = None, sex = None
     plt.show()
 
 
-def fitting_gm(year, sex, age, show_graph = True):
+def draw_fitted_gm(year, sex, age, show_graph = True):
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
     result = fit_gm(age = age, Dx = Dx, Ex = Ex)
     a, b, c = result.x
@@ -392,11 +359,9 @@ def draw_LAR (params, age):
     plt.show()
     
 
-def evaluate_fit_metrics(observed_mu, fitted_mu, epsilon = 1e-8, precision = 6, notice = True) :
+def evaluate_fit_metrics(observed_mu, fitted_mu, precision = 6, notice = True) :
     observed_mu = np.array(observed_mu)
     fitted_mu = np.array(fitted_mu)
-    # 안정화 (0분모 방지)
-    observed_mu_safe = np.where(observed_mu == 0, epsilon, observed_mu)
 
     rmse = np.sqrt(np.mean((observed_mu - fitted_mu) ** 2))
     mae = np.mean(np.abs(observed_mu - fitted_mu))
@@ -430,7 +395,7 @@ def evaluate_fit_metrics(observed_mu, fitted_mu, epsilon = 1e-8, precision = 6, 
 def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_range, filepath, notice = True, compare_gm = False,
                     best_logL_ggm = None, best_logL_gm = None, n_runs = 30, Dx = None, Ex = None, age = None, show_graph = True, threshold = 0.005) :
     
-    result_gm = fitting_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
+    result_gm = draw_fitted_gm(year = year, sex = sex, age = age, show_graph = show_graph) 
     best_logL_gm = best_logL_gm if best_logL_gm is not None else -np.inf
     best_logL_ggm = best_logL_ggm if best_logL_ggm is not None else -np.inf
     best_result = None; best_scale_params = None
@@ -441,7 +406,8 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
     required_keys = ['a', 'b', 'gamma', 'c']
     temp_best_logL_ggm = -np.inf 
     temp_best_scale_params = None
-    temp_best_logL_ggm_worse_than_gm = -np.inf
+    temp_best_logL_ggm_worse = -np.inf
+    temp_best_result_worse = None
 
 
     year, sex, Dx, Ex, age, observed_mu = load_life_table(year = year, sex = sex)
@@ -475,14 +441,14 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
         max_weight = random.choice(max_weight_candidates)
         
         try:
-            result_ggm, best_logL_ggm_worse_than_gm = fit_ggm(age, Dx, Ex, sex, n = trial, bounds = None, best_logL_gm = best_logL_gm,
+            result_ggm, best_logL_ggm_worse = fit_ggm(age, Dx, Ex, sex, n = trial, bounds = None, best_logL_gm = best_logL_gm,
                             weight_func = weight_sigmoid, meaningless = False, notice_trange = notice,
                             weight_params = {'center': center, 'scale': scale, 'max_weight': max_weight}, compare_gm = compare_gm,
-                            rmse_filter_params = {'center': center, 'scale': scale, 'max_weight': max_weight, 'rmse_threshold': threshold},
                             opt_func = "differential_evolution")
-            if result_ggm is None or not result_ggm.success :
-                if best_logL_ggm_worse_than_gm > temp_best_logL_ggm_worse_than_gm : # GM보다도 결과 안 좋은 경우에 얼마나 안좋았나 확인용
-                    temp_best_logL_ggm_worse_than_gm = best_logL_ggm_worse_than_gm
+            
+            if best_logL_ggm_worse is not -np.inf : # 기존 결과보다 안좋은 결과를 얻어서 갱신되었다는 의미
+                temp_best_logL_ggm_worse = best_logL_ggm_worse
+                temp_best_result_worse = result_ggm
                 fitting_fail_count += 1
                 continue
         except Exception as e:
@@ -581,6 +547,12 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             print(f"center     = {temp_best_scale_params['center']}")
             print(f"scale      = {temp_best_scale_params['scale']}")
             print(f"max_weight = {temp_best_scale_params['max_weight']}")
+            if temp_best_result_worse is not None:    
+                a_temp, b_temp, gamma_temp, c_temp = temp_best_result_worse.x
+                print(f"a     = {a_temp:.10f}")
+                print(f"b     = {b_temp:.10f}")
+                print(f"gamma = {gamma_temp:.10f}")
+                print(f"c     = {c_temp:.10f}")
             if scale_row['x*'] is not None : 
                 print(f"x* = {scale_row['x*']:.2f}세")
             if ggm_params is not None :
@@ -588,9 +560,16 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
             elif ggm_params is None : 
                 ("개선 실패: 기존 GGM 파라미터가 없으므로 그래프 생략")     
         
-        elif improve_count == 0 and fitting_fail_count == n_runs :
-            print("GM보다 나은 결과를 한 번도 얻지 못했음")
-            print(f"이번 시행의 최고 로그우도와 GM 값의 차이 : {best_logL_gm - temp_best_logL_ggm_worse_than_gm}")
+        elif improve_count == 0 and fitting_fail_count == n_runs : 
+            if temp_best_result_worse is not None:    
+                a_temp, b_temp, gamma_temp, c_temp = temp_best_result_worse.x
+                print(f"a     = {a_temp:.10f}")
+                print(f"b     = {b_temp:.10f}")
+                print(f"gamma = {gamma_temp:.10f}")
+                print(f"c     = {c_temp:.10f}")
+            # print("GM보다 나은 결과를 한 번도 얻지 못했음")
+            # print(f"이번 시행의 최고 로그우도와 GM 값의 차이 : {best_logL_gm - temp_best_logL_ggm_worse}")
+            
 
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
