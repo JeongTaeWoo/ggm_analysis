@@ -574,6 +574,76 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
 
+def refine_from_excel(year, sex, Dx, Ex, filepath, observed_mu, bounds = None):
+
+    # 1. 엑셀 파일에서 기존 파라미터 및 로그우도 불러오기
+    scale_row = get_data_from_file(filepath, year, sex)
+    
+    # 필수 파라미터들이 존재하는지 확인
+    required_keys = ['a', 'b', 'gamma', 'c', 'center', 'scale', 'max_weight', 'logL_ggm']
+    if not all(key in scale_row and scale_row[key] is not None for key in required_keys):
+        print(f"오류: {year}년 {sex} 데이터에 필수 파라미터가 부족")
+        return False
+        
+    # 기존 파라미터와 로그우도
+    existing_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
+    existing_logL_ggm = scale_row['logL_ggm']
+    weight_params = {
+        'center': scale_row['center'],
+        'scale': scale_row['scale'],
+        'max_weight': scale_row['max_weight']
+    }
+    try:
+        # 가중치 포함 로그우도 함수 생성
+        neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, weight_func = weight_sigmoid, weight_params = weight_params)
+        # minimize 함수에 기존 파라미터를 초기값으로 전달
+        bounds = bounds if bounds is not None else [(1e-4, 3e-3), (0.08, 0.14), (0.004, 0.3), (3e-5, 3e-3)] 
+        result = minimize(
+            fun = neg_log_likelihood,
+            x0 = existing_params,
+            bounds = bounds,
+            method = 'L-BFGS-B'
+        )
+        
+        if not result.success:
+            print(f"{year}년 {sex} minimize 최적화에 실패")
+            return False
+            
+        new_params = result.x
+        
+    except Exception as e:
+        print(f"오류: {year}년 {sex} minimize 실행 중 예외 발생 - {e}")
+        traceback.print_exc()
+        return False
+
+    # 4. 새로운 로그우도 계산 (가중치가 없는 순수 로그우도)
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func=None)
+    new_logL_ggm = -neg_log_likelihood_pure(new_params)
+
+    # 5. 기존 결과와 비교
+    if new_logL_ggm > existing_logL_ggm:
+        print(f"개선 성공: 기존 logL({existing_logL_ggm:.4f}) -> 새로운 logL({new_logL_ggm:.4f})")
+        
+        # 새로운 파라미터로 지표 재계산
+        fitted_mu, x_star = calc_ggm(new_params, age)
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu, notice = False)
+
+        # 엑셀에 저장할 딕셔너리 생성
+        update_values = {
+            "a": new_params[0], "b": new_params[1], "gamma": new_params[2], "c": new_params[3],
+            "logL_ggm": new_logL_ggm, "x*": x_star,
+            **metrics  # rmse, mae, mape 추가
+        }
+        
+        # 엑셀 파일 업데이트
+        save_result_to_excel(update_values, year, sex, filepath)
+        
+        return True
+        
+    else:
+        print(f"개선 실패, 로그우도 차이: {existing_logL_ggm - new_logL_ggm:.4f}")
+        return False
+
 
 def save_result_to_excel(update_values: dict, year, sex, filepath):
 
