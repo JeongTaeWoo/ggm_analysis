@@ -574,7 +574,136 @@ def find_best_scale (year, sex, trial, center_range, scale_range, max_weight_ran
 
     return best_result, best_logL_ggm, best_scale_params, result_gm
 
-def refine_from_excel(year, sex, Dx, Ex, filepath, observed_mu, bounds = None):
+def _parse_input_to_list(arg):
+    """
+    None, 단일 값, 또는 range/list를 리스트로 변환하는 헬퍼 함수
+    """
+    if arg is None:
+        return [None]
+    elif isinstance(arg, (int, float)):
+        return [arg]
+    elif isinstance(arg, range):
+        return list(arg)
+    elif isinstance(arg, (list, tuple, np.ndarray)):
+        return list(arg)
+    else:
+        raise ValueError(f"지원하지 않는 인자 형식: {type(arg)}")
+    
+def run_refine_search(year, sex, filepath, centers, scales, max_weights, bounds = None):
+    """
+    주어진 범위의 가중치 파라미터(centers, scales, max_weights) 조합을
+    모두 탐색하고 결과를 별도 엑셀 파일에 저장합니다.
+    """
+    print(f"[{year}년 {sex} 파라미터 미세조정 탐색 시작]")
+
+    # 생명표 데이터 불러오기
+    year, sex, Dx, Ex, age, observed_mu = load_life_table(year, sex)
+
+    # 기존 GGM 로그우도 불러오기 (탐색 결과 비교용)
+    scale_row = get_data_from_file(filepath, year, sex)
+    baseline_logL_ggm = scale_row.get('logL_ggm', -np.inf)
+    if baseline_logL_ggm == -np.inf:
+        print("기존 GGM 로그우도 값이 없습니다.")
+    else:
+        print(f"기존 GGM 로그우도: {baseline_logL_ggm:.4f}")
+
+    # 탐색할 파라미터 리스트 생성
+    center_list = _parse_input_to_list(centers)
+    scale_list = _parse_input_to_list(scales)
+    max_weight_list = _parse_input_to_list(max_weights)
+
+    all_results = []
+    
+    # 순수 로그우도 계산 함수 (가중치 없는)
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func=None)
+
+    # 탐색 루프
+    total_runs = len(center_list) * len(scale_list) * len(max_weight_list)
+    search_bar = trange(total_runs, desc="탐색 진행 중", leave=True)
+    
+    # 가장 좋았던 결과 저장용 변수
+    best_logL_ggm_overall = -np.inf
+    best_result_dict = None
+    
+    for center in center_list:
+        for scale in scale_list:
+            for max_weight in max_weight_list:
+                search_bar.update(1)
+                
+                # 기존 GGM 파라미터를 초기값으로 사용
+                init_params = [scale_row.get(p) for p in ['a', 'b', 'gamma', 'c']]
+                if None in init_params:
+                    print("오류: 초기 GGM 파라미터가 엑셀에 없어 탐색을 건너뜁니다.")
+                    continue
+                
+                # 가중치 파라미터 설정
+                current_weight_params = {
+                    'center': center if center is not None else scale_row['center'],
+                    'scale': scale if scale is not None else scale_row['scale'],
+                    'max_weight': max_weight if max_weight is not None else scale_row['max_weight']
+                }
+
+                try:
+                    neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, weight_func=weight_sigmoid, weight_params = current_weight_params)
+                    bounds = bounds if bounds is not None else [(1e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)]
+                    result = minimize(
+                        fun=neg_log_likelihood,
+                        x0=init_params,
+                        bounds=bounds,
+                        method='L-BFGS-B'
+                    )
+
+                    if result.success:
+                        new_logL_ggm = -neg_log_likelihood_pure(result.x)
+                        fitted_mu, x_star = calc_ggm(result.x, age)
+                        metrics = evaluate_fit_metrics(observed_mu, fitted_mu, notice=False)
+                        
+                        result_dict = {
+                            "year": year, "sex": sex,
+                            "center": current_weight_params['center'],
+                            "scale": current_weight_params['scale'],
+                            "max_weight": current_weight_params['max_weight'],
+                            "a": result.x[0], "b": result.x[1], "gamma": result.x[2], "c": result.x[3],
+                            "logL_ggm": new_logL_ggm,
+                            "logL_diff": new_logL_ggm - baseline_logL_ggm,
+                            "x*": x_star,
+                            **metrics
+                        }
+                        all_results.append(result_dict)
+                        
+                        # 가장 좋았던 결과 갱신
+                        if new_logL_ggm > best_logL_ggm_overall:
+                            best_logL_ggm_overall = new_logL_ggm
+                            best_result_dict = result_dict
+                    
+                except Exception as e:
+                    print(f"\n{center, scale, max_weight} 조합에서 오류 발생: {e}")
+                    traceback.print_exc()
+
+    search_bar.close()
+    
+    # 결과 저장
+    if all_results:
+        # results_df = pd.DataFrame(all_results)
+        # output_file = Path(filepath).parent / "가중치 측정 결과.xlsx"
+        # results_df.to_excel(output_file, index=False)
+        # print(f"\n모든 탐색 결과가 '{output_file}'에 저장되었습니다.")
+
+        if best_result_dict:
+            print("\n[탐색 결과 요약]")
+            if best_result_dict['logL_diff'] > 0:
+                print(f"★ 기존 값 대비 개선 성공! (차이: {best_result_dict['logL_diff']:.10f})")
+            else:
+                print(f"기존 값 대비 개선 실패 (최소 차이: {new_logL_ggm - baseline_logL_ggm})")
+            
+            print(f"최적 가중치: center={best_result_dict['center']}, scale={best_result_dict['scale']}, max_weight={best_result_dict['max_weight']}")
+            print(f"최적 GGM 파라미터: a={best_result_dict['a']:.6f}, b={best_result_dict['b']:.6f}, gamma={best_result_dict['gamma']:.6f}, c={best_result_dict['c']:.6f}")
+    else:
+        print("\n탐색 결과가 없습니다.")
+    
+    return
+    
+def run_refine_excel(year, sex, Dx, Ex, filepath, observed_mu, bounds = None):
 
     # 1. 엑셀 파일에서 기존 파라미터 및 로그우도 불러오기
     scale_row = get_data_from_file(filepath, year, sex)
@@ -597,7 +726,7 @@ def refine_from_excel(year, sex, Dx, Ex, filepath, observed_mu, bounds = None):
         # 가중치 포함 로그우도 함수 생성
         neg_log_likelihood = make_neg_log_likelihood(Dx, Ex, age, weight_func = weight_sigmoid, weight_params = weight_params)
         # minimize 함수에 기존 파라미터를 초기값으로 전달
-        bounds = bounds if bounds is not None else [(1e-4, 3e-3), (0.08, 0.14), (0.004, 0.3), (3e-5, 3e-3)] 
+        bounds = bounds if bounds is not None else [(1e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)] 
         result = minimize(
             fun = neg_log_likelihood,
             x0 = existing_params,

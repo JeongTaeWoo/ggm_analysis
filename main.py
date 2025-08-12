@@ -17,9 +17,14 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2011, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "남자")
 
-func.refine_from_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)])
+# func.run_refine_search(year, sex, output_path_result, 
+#                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
+#                             bounds = [(1e-4, 5e-4), (0.09, 0.13), (0.001, 0.3), (3e-4, 1e-3)])
+
+#func.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
+
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가? 어떤거?
 
@@ -29,28 +34,26 @@ func.refine_from_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bound
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?
-
-# TODO DE 결과를 minimize 돌려볼까
 #--------------------
 # center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1)
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
 
-# try:
-#     previous_result = func.get_data_from_file(output_path_result, year, sex)
-#     func.find_best_scale(year, sex, trial = 100, n_runs = 1,
-#                         center_range = 93, scale_range = 5, max_weight_range = 9,
-#                         Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True, compare_gm = False,
-#                         best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
+try:
+    previous_result = func.get_data_from_file(output_path_result, year, sex)
+    func.find_best_scale(year, sex, trial = 1000, n_runs = 5,
+                        center_range = 87, scale_range = 9.6, max_weight_range = 2,
+                        Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True, compare_gm = False,
+                        best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
-# except AttributeError as e:
-#     print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
+except AttributeError as e:
+    print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
-# except Exception as e:
-#     traceback.print_exc()
-#     print(f"알 수 없는 오류 발생: {e}")     
+except Exception as e:
+    traceback.print_exc()
+    print(f"알 수 없는 오류 발생: {e}")     
 
-# finally: 
-#     pass
+finally: 
+    pass
 #    os.system("shutdown /h")    
 #--------------------
 
