@@ -26,11 +26,11 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "�
 #func.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
 
 #--------------------
-# TODO evaluate_fit_metrics에 항목 추가? 어떤거?
+# TODO evaluate_fit_metrics에 항목 추가?
 
 # TODO 논문 읽었던거 내용 간단하게라도 정리해서 모아두기 - 진행중
 
-# TODO 엑셀 업데이트 많이 됐으니까 엑셀 읽어다가 그래프 그려주고 + metrics 보여주는 함수 만들기
+# TODO minimize 돌리면 bound에 너무 매몰되는것 같음
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?
@@ -40,10 +40,10 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "�
 
 try:
     previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year, sex, trial = 1000, n_runs = 5,
-                        center_range = 87, scale_range = 9.6, max_weight_range = 2,
-                        Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = True, compare_gm = False,
-                        best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
+    func.find_best_scale(year, sex, Dx, Ex, age, trial = 100, n_runs = 1,
+            center_range = 87, scale_range = 9, max_weight_range = 2, bounds = [(3e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)],
+                    filepath = output_path_result, notice = True, show_graph = True, compare_gm = False,
+                    best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
 except AttributeError as e:
     print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
