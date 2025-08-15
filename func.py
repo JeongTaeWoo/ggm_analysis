@@ -6,7 +6,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from tqdm import trange
-import xlsxwriter
 import traceback
 
 age = np.arange(65, 100, dtype = float)  # 65세부터 99세까지 기본값 설정
