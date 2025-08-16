@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LAR 함수 시각화 도구</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inter 폰트 적용 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #333;
+        }
+        /* 캔버스 기본 스타일 */
+        canvas {
+            background-color: #ffffff;
+            border-radius: 0.75rem; /* rounded-xl */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* shadow-md */
+            width: 100%; /* 반응형 너비 */
+            height: auto; /* 높이 자동 조정 */
+            display: block; /* 블록 요소로 설정 */
+        }
+        /* 슬라이더 스타일 */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6366f1; /* indigo-500 */
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3); /* focus ring effect */
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6366f1; /* indigo-500 */
+            cursor: pointer;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.3);
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 8px;
+            background: #e0e7ff; /* indigo-100 */
+            border-radius: 4px;
+        }
+        input[type="range"]::-moz-range-track {
+            width: 100%;
+            height: 8px;
+            background: #e0e7ff; /* indigo-100 */
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+    <div class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-3xl font-bold text-center text-indigo-700 mb-6">LAR 함수 시각화</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <!-- Parameter A -->
+            <div class="flex flex-col">
+                <label for="paramA" class="text-lg font-medium text-gray-700 mb-2">
+                    a: <span id="valA" class="font-semibold text-indigo-600"></span>
+                </label>
+                <input type="range" id="paramA" min="0.00001" max="0.003" step="0.00001" value="0.0015"
+                       class="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer">
+                <input type="number" id="inputA" min="0.00001" max="0.003" step="0.00001" value="0.0015"
+                       class="mt-2 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+            </div>
+
+            <!-- Parameter B -->
+            <div class="flex flex-col">
+                <label for="paramB" class="text-lg font-medium text-gray-700 mb-2">
+                    b: <span id="valB" class="font-semibold text-indigo-600"></span>
+                </label>
+                <input type="range" id="paramB" min="0.08" max="0.14" step="0.001" value="0.11"
+                       class="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer">
+                <input type="number" id="inputB" min="0.08" max="0.14" step="0.001" value="0.11"
+                       class="mt-2 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+            </div>
+
+            <!-- Parameter Gamma -->
+            <div class="flex flex-col">
+                <label for="paramGamma" class="text-lg font-medium text-gray-700 mb-2">
+                    gamma: <span id="valGamma" class="font-semibold text-indigo-600"></span>
+                </label>
+                <input type="range" id="paramGamma" min="0.01" max="0.3" step="0.005" value="0.15"
+                       class="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer">
+                <input type="number" id="inputGamma" min="0.01" max="0.3" step="0.005" value="0.15"
+                       class="mt-2 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+            </div>
+
+            <!-- Parameter C -->
+            <div class="flex flex-col">
+                <label for="paramC" class="text-lg font-medium text-gray-700 mb-2">
+                    c: <span id="valC" class="font-semibold text-indigo-600"></span>
+                </label>
+                <input type="range" id="paramC" min="0.00003" max="0.003" step="0.0001" value="0.00015"
+                       class="w-full h-2 bg-indigo-100 rounded-lg appearance-none cursor-pointer">
+                <input type="number" id="inputC" min="0.00003" max="0.003" step="0.0001" value="0.00015"
+                       class="mt-2 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm">
+            </div>
+        </div>
+
+        <!-- Deceleration Age Display -->
+        <div class="flex justify-center mb-4">
+            <p class="text-lg font-medium text-gray-700">
+                감속 발생 연령 (x*): <span id="decelerationAge" class="font-semibold text-indigo-600"></span>
+            </p>
+        </div>
+
+        <div class="flex justify-center mb-4">
+            <canvas id="larChart" class="w-full h-96"></canvas>
+        </div>
+
+        <p class="text-sm text-gray-600 text-center mt-4">
+            * 나이 범위: 60세 ~ 110세. LAR 함수는 감마-곰페르츠-메이컴(Gamma-Gompertz-Makeham) 모델에 기반합니다.
+            그래프의 종 형태는 특정 매개변수 조합과 연관됩니다.
+        </p>
+    </div>
+
+    <script>
+        // DOM 요소 가져오기
+        const paramA = document.getElementById('paramA');
+        const valA = document.getElementById('valA');
+        const inputA = document.getElementById('inputA');
+
+        const paramB = document.getElementById('paramB');
+        const valB = document.getElementById('valB');
+        const inputB = document.getElementById('inputB');
+
+        const paramGamma = document.getElementById('paramGamma');
+        const valGamma = document.getElementById('valGamma');
+        const inputGamma = document.getElementById('inputGamma');
+
+        const paramC = document.getElementById('paramC');
+        const valC = document.getElementById('valC');
+        const inputC = document.getElementById('inputC');
+
+        const decelerationAgeSpan = document.getElementById('decelerationAge'); // 감속 발생 연령 표시 요소
+
+        const canvas = document.getElementById('larChart');
+        const ctx = canvas.getContext('2d');
+
+        // 그래프 설정
+        const xMin = 60;
+        const xMax = 110;
+        const padding = 50; // 캔버스 여백
+
+        // 매개변수 값 업데이트 및 그래프 다시 그리기 함수
+        function updateValueAndDraw() {
+            // 슬라이더 값을 텍스트 및 입력 필드에 반영
+            valA.textContent = parseFloat(paramA.value).toFixed(5);
+            inputA.value = parseFloat(paramA.value).toFixed(5);
+
+            valB.textContent = parseFloat(paramB.value).toFixed(3);
+            inputB.value = parseFloat(paramB.value).toFixed(3);
+
+            valGamma.textContent = parseFloat(paramGamma.value).toFixed(3);
+            inputGamma.value = parseFloat(paramGamma.value).toFixed(3);
+
+            valC.textContent = parseFloat(paramC.value).toFixed(5);
+            inputC.value = parseFloat(paramC.value).toFixed(5);
+
+            drawChart();
+        }
+
+        // Gamma-Gompertz-Makeham 모델의 사망력 함수 (mu(x))
+        function calculateMu(x, a, b, gamma, c) {
+            // Gamma-Gompertz-Makeham 모델의 사망력 함수 공식
+            // μ(x) = c + (a * exp(b*x)) / (1 + gamma * (a/b) * (Math.exp(b*x) - 1))
+            const numerator = a * Math.exp(b * x);
+            const denominator = 1 + gamma * (a / b) * (Math.exp(b * x) - 1);
+            return c + numerator / denominator;
+        }
+
+        // LAR (Life-table Aging Rate) 함수
+        function calculateLAR(x, a, b, gamma, c) {
+            const mu_x = calculateMu(x, a, b, gamma, c);
+            if (mu_x === 0) return NaN; // 0으로 나누는 것을 방지
+
+            // LAR 함수 공식: b * (1 - c/mu(x)) - gamma * (1 - c/mu(x)) * (mu(x) - c)
+            const common_term = (1 - c / mu_x);
+            return b * common_term - gamma * common_term * (mu_x - c);
+        }
+
+        // 그래프 그리기 함수
+        function drawChart() {
+            // 캔버스 크기 조정 (반응형)
+            const dpi = window.devicePixelRatio || 1;
+            const styleWidth = getComputedStyle(canvas).getPropertyValue('width').slice(0, -2);
+            const styleHeight = getComputedStyle(canvas).getPropertyValue('height').slice(0, -2);
+            canvas.width = parseFloat(styleWidth) * dpi;
+            canvas.height = parseFloat(styleHeight) * dpi;
+            ctx.scale(dpi, dpi);
+
+            // 캔버스 초기화
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 현재 매개변수 값 가져오기
+            const a = parseFloat(paramA.value);
+            const b = parseFloat(paramB.value);
+            const gamma = parseFloat(paramGamma.value);
+            const c = parseFloat(paramC.value);
+
+            const larValues = [];
+            let minY = Infinity;
+            let maxY = -Infinity;
+            let maxLar = -Infinity;
+            let decelerationAge = null;
+
+            // LAR 값 계산
+            for (let x = xMin; x <= xMax; x += 0.5) { // 0.5 단위로 샘플링하여 부드러운 곡선 그리기
+                const lar = calculateLAR(x, a, b, gamma, c);
+                if (!isNaN(lar) && isFinite(lar)) {
+                    larValues.push({ x: x, y: lar });
+                    minY = Math.min(minY, lar);
+                    maxY = Math.max(maxY, lar);
+
+                    // argmax (deceleration age) 계산
+                    if (lar > maxLar) {
+                        maxLar = lar;
+                        decelerationAge = x;
+                    }
+                }
+            }
+
+            // 감속 발생 연령 표시
+            if (decelerationAge !== null) {
+                decelerationAgeSpan.textContent = decelerationAge.toFixed(2) + '세';
+            } else {
+                decelerationAgeSpan.textContent = '계산 불가';
+            }
+
+
+            // Y축 범위 계산 (여백 추가)
+            const yRange = (maxY === -Infinity || minY === Infinity) ? 0.1 : (maxY - minY);
+            const yMin = minY - yRange * 0.2; // 아래 여백 20%
+            const yMax = maxY + yRange * 0.2; // 위 여백 20%
+
+            // 스케일링 비율 계산
+            const xScale = (canvas.width - 2 * padding) / (xMax - xMin);
+            const yScale = (canvas.height - 2 * padding) / (yMax - yMin);
+
+            // 축 그리기
+            ctx.beginPath();
+            ctx.strokeStyle = '#6b7280'; // gray-500
+            ctx.lineWidth = 2;
+
+            // X축 (나이)
+            ctx.moveTo(padding, canvas.height - padding);
+            ctx.lineTo(canvas.width - padding, canvas.height - padding);
+            // Y축 (LAR)
+            ctx.moveTo(padding, canvas.height - padding);
+            ctx.lineTo(padding, padding);
+            ctx.stroke();
+
+            // 축 라벨 및 눈금
+            ctx.fillStyle = '#4b5563'; // gray-700
+            ctx.font = '12px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // X축 눈금
+            for (let x = xMin; x <= xMax; x += 10) {
+                const cx = padding + (x - xMin) * xScale;
+                ctx.fillText(x, cx, canvas.height - padding + 20);
+                ctx.beginPath();
+                ctx.moveTo(cx, canvas.height - padding);
+                ctx.lineTo(cx, canvas.height - padding - 5);
+                ctx.stroke();
+            }
+            ctx.fillText('나이 (x)', canvas.width / 2, canvas.height - padding + 40);
+
+            // Y축 눈금 (5개 정도)
+            const numYLabels = 5;
+            for (let i = 0; i <= numYLabels; i++) {
+                const yValue = yMin + (yMax - yMin) * (i / numYLabels);
+                const cy = canvas.height - padding - (yValue - yMin) * yScale;
+                ctx.textAlign = 'right';
+                ctx.fillText(yValue.toFixed(3), padding - 10, cy);
+                ctx.beginPath();
+                ctx.moveTo(padding, cy);
+                ctx.lineTo(padding + 5, cy);
+                ctx.stroke();
+            }
+            ctx.save();
+            ctx.translate(padding - 40, canvas.height / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.textAlign = 'center';
+            ctx.fillText('LAR (r(x))', 0, 0);
+            ctx.restore();
+
+            // LAR 곡선 그리기
+            ctx.beginPath();
+            ctx.strokeStyle = '#6366f1'; // indigo-500
+            ctx.lineWidth = 3;
+
+            let firstPoint = true;
+            for (const point of larValues) {
+                const cx = padding + (point.x - xMin) * xScale;
+                const cy = canvas.height - padding - (point.y - yMin) * yScale;
+
+                if (firstPoint) {
+                    ctx.moveTo(cx, cy);
+                    firstPoint = false;
+                } else {
+                    ctx.lineTo(cx, cy);
+                }
+            }
+            ctx.stroke();
+        }
+
+        // 이벤트 리스너 설정
+        paramA.addEventListener('input', updateValueAndDraw);
+        inputA.addEventListener('change', (e) => {
+            paramA.value = parseFloat(e.target.value);
+            updateValueAndDraw();
+        });
+
+        paramB.addEventListener('input', updateValueAndDraw);
+        inputB.addEventListener('change', (e) => {
+            paramB.value = parseFloat(e.target.value);
+            updateValueAndDraw();
+        });
+
+        paramGamma.addEventListener('input', updateValueAndDraw);
+        inputGamma.addEventListener('change', (e) => {
+            paramGamma.value = parseFloat(e.target.value);
+            updateValueAndDraw();
+        });
+
+        paramC.addEventListener('input', updateValueAndDraw);
+        inputC.addEventListener('change', (e) => {
+            paramC.value = parseFloat(e.target.value);
+            updateValueAndDraw();
+        });
+
+        // 초기 그래프 그리기
+        window.onload = function() {
+            updateValueAndDraw();
+            // 캔버스 반응형 조정을 위한 resize 이벤트 리스너
+            window.addEventListener('resize', updateValueAndDraw);
+        };
+
+    </script>
+</body>
+</html>

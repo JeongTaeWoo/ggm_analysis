@@ -17,7 +17,9 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2001, sex = "남자")
+
+func.draw_LAR_from_file(year, sex)
 
 # func.run_refine_search(year, sex, output_path_result, 
 #                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
@@ -28,9 +30,10 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "�
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가?
 
-# TODO 논문 읽었던거 내용 간단하게라도 정리해서 모아두기 - 진행중
+# TODO 국내 데이터와 러시아, 우크라이나(사망률 높다고 언급됨, 벨 분포 사용하는 대표적인 예시) 비교해보기, 잘 안되면 분산 - 평균 비교랑 잔차 확인
+# TODO HMD 자료로 써보기
 
-# TODO minimize 돌리면 bound에 너무 매몰되는것 같음
+# TODO LAR 종 형태 나타나는 파라미터 찾아보기(html 파일 사용)
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?
@@ -38,22 +41,22 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "�
 # center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (2, 20, 1)
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
 
-try:
-    previous_result = func.get_data_from_file(output_path_result, year, sex)
-    func.find_best_scale(year, sex, Dx, Ex, age, trial = 100, n_runs = 1,
-            center_range = 87, scale_range = 9, max_weight_range = 2, bounds = [(3e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)],
-                    filepath = output_path_result, notice = True, show_graph = True, compare_gm = False,
-                    best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
+# try:
+#     previous_result = func.get_data_from_file(output_path_result, year, sex)
+#     func.find_best_scale(year, sex, Dx, Ex, age, trial = 100, n_runs = 1,
+#             center_range = 87, scale_range = 9, max_weight_range = 2, bounds = [(3e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)],
+#                     filepath = output_path_result, notice = True, show_graph = True, compare_gm = False,
+#                     best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
 
-except AttributeError as e:
-    print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
+# except AttributeError as e:
+#     print(f"결과 저장 실패 - 개선된 결과가 없습니다. ({e})")   
 
-except Exception as e:
-    traceback.print_exc()
-    print(f"알 수 없는 오류 발생: {e}")     
+# except Exception as e:
+#     traceback.print_exc()
+#     print(f"알 수 없는 오류 발생: {e}")     
 
-finally: 
-    pass
+# finally: 
+#     pass
 #    os.system("shutdown /h")    
 #--------------------
 

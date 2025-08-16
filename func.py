@@ -333,30 +333,39 @@ def replace_result_for_year(year, sex, new_row, result_path):
     print(f"{year}년 {sex} 결과가 갱신되었습니다 → {result_path}")
     
     
-def draw_LAR (params, age):
-    a, b, gamma, c = params
-    log_num = np.log(a) + b * age
-    log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
-    mu = np.exp(log_num - log_denom) + c
-    lar = b * (1 - c / mu) - gamma * (1 - c / mu) * (mu - c)
+def draw_LAR_from_file(year, sex):
+    """
+    Reads the GGM parameters for a given year and sex from the CSV file
+    and plots the LAR curve.
+    """
+    data = get_data_from_file(filepath = '측정 결과.xlsx', year = year, sex = sex)
     
-    num = (b + c * gamma) * c
-    denom = 2 * a * b
-    root_numer = (b + c * gamma) * c * gamma * ((b + c * gamma) * c - 4 * b * (a * gamma - b))
-    root_denom = 2 * a * b * gamma
-    log_argument = (num / denom) + (np.sqrt(root_numer) / root_denom)
-    
-    x_star = (1 / b) * np.log(log_argument)  
-    print("x* : ", x_star, "세")
-    
-    plt.plot(age, lar, label='Fitted', linestyle='--')
-    plt.xlabel('Age')
-    plt.ylabel('LAR')
-    plt.title('Gamma-Gompertz-Makeham Fit')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-    
+    if data:
+        params = [data['a'], data['b'], data['gamma'], data['c']]
+        a, b, gamma, c = params
+        log_num = np.log(a) + b * age
+        log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
+        mu = np.exp(log_num - log_denom) + c
+        lar = b * (1 - c / mu) - gamma * (1 - c / mu) * (mu - c)
+        
+        num = (b + c * gamma) * c
+        denom = 2 * a * b
+        root_numer = (b + c * gamma) * c * gamma * ((b + c * gamma) * c - 4 * b * (a * gamma - b))
+        root_denom = 2 * a * b * gamma
+        log_argument = (num / denom) + (np.sqrt(root_numer) / root_denom)
+        
+        x_star = (1 / b) * np.log(log_argument)  
+        print("x* : ", x_star, "세")
+        
+        plt.plot(age, lar, label = 'LAR', linestyle = '--')
+        plt.xlabel('Age')
+        plt.ylabel('LAR')
+        plt.title('Gamma-Gompertz-Makeham Fit')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+    else:
+        print(f"{year}년 {sex}에 대한 데이터가 존재하지 않습니다.")    
 
 def evaluate_fit_metrics(observed_mu, fitted_mu, precision = 6, notice = True) :
     observed_mu = np.array(observed_mu)
