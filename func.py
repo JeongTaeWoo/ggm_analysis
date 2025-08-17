@@ -708,6 +708,10 @@ def run_refine_search(year, sex, filepath, centers, scales, max_weights, bounds 
     return
     
 def run_refine_excel(year, sex, Dx, Ex, filepath, observed_mu, bounds = None):
+    """
+    기존 엑셀 파일에 저장된 값들을 minimize 함수를 통해 재탐색합니다
+    더 나은 로그우도를 얻었다면 업데이트합니다
+    """
 
     # 1. 엑셀 파일에서 기존 파라미터 및 로그우도 불러오기
     scale_row = get_data_from_file(filepath, year, sex)

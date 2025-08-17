@@ -19,8 +19,6 @@ output_path_result = base_dir / "측정 결과.xlsx"
 
 year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2001, sex = "남자")
 
-func.draw_LAR_from_file(year, sex)
-
 # func.run_refine_search(year, sex, output_path_result, 
 #                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
 #                             bounds = [(1e-4, 5e-4), (0.09, 0.13), (0.001, 0.3), (3e-4, 1e-3)])
@@ -30,10 +28,11 @@ func.draw_LAR_from_file(year, sex)
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가?
 
-# TODO 국내 데이터와 러시아, 우크라이나(사망률 높다고 언급됨, 벨 분포 사용하는 대표적인 예시) 비교해보기, 잘 안되면 분산 - 평균 비교랑 잔차 확인
+# TODO 벨 분포의 사용 예시로 나온 분산 - 평균 비교랑 잔차 확인
 # TODO HMD 자료로 써보기
 
-# TODO LAR 종 형태 나타나는 파라미터 찾아보기(html 파일 사용)
+# TODO 사력은 c의 영향이 거의 없다(상수항이고, 값도 너무 작음) 하지만 c는 LAR의 평행이동에는 상당한 영향력이 있음. 
+# 그러면 나머지 세 변수만 잘 잡아두고 c 조절해가면서 로그우도를 측정해본다면?
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?
