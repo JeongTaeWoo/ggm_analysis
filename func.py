@@ -334,19 +334,13 @@ def replace_result_for_year(year, sex, new_row, result_path):
     
     
 def draw_LAR_from_file(year, sex):
-    """
-    Reads the GGM parameters for a given year and sex from the CSV file
-    and plots the LAR curve.
-    """
+
     data = get_data_from_file(filepath = '측정 결과.xlsx', year = year, sex = sex)
     
     if data:
         params = [data['a'], data['b'], data['gamma'], data['c']]
         a, b, gamma, c = params
-        log_num = np.log(a) + b * age
-        log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age))) 
-        mu = np.exp(log_num - log_denom) + c
-        lar = b * (1 - c / mu) - gamma * (1 - c / mu) * (mu - c)
+        lar = calc_lar(params, age)
         
         num = (b + c * gamma) * c
         denom = 2 * a * b
@@ -853,3 +847,12 @@ def get_data_from_file(filepath, year, sex, default_value = None):
             row[key] = default
     
     return row
+
+def calc_lar(params, age):
+    a, b, gamma, c = params
+    log_num = np.log(a) + b * age
+    log_denom = np.log1p((gamma * a / b) * (np.expm1(b * age)))
+    mu = np.exp(log_num - log_denom) + c
+    
+    lar = b * (1 - c / mu) - gamma * (1 - c / mu) * (mu - c)
+    return lar
