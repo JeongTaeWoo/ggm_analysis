@@ -6,8 +6,6 @@ import os
 import numpy as np
 import func
 
-# TODO 키보드 여전히 안먹음, 스크롤바 계속 가출함
-
 def create_gui_app():
     root = tk.Tk()
     root.title("Mortality and LAR Visualization Tool")
@@ -43,7 +41,7 @@ def create_gui_app():
     main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     # Left panel: parameter controls + metrics panel
-    control_panel = tk.Frame(main_container, width = 400)
+    control_panel = tk.Frame(main_container, width = 800)
     control_panel.pack(side=tk.LEFT, fill=tk.Y)
     control_panel.pack_propagate(False)
 
@@ -64,7 +62,8 @@ def create_gui_app():
     xstar_label.pack(fill=tk.X)
 
     # Scrollable canvas and frame for parameter controls
-    canvas_container_left = tk.Canvas(control_panel)
+    canvas_container_left = tk.Canvas(control_panel, width = 200)
+    canvas_container_left.pack(side="left", fill="both", expand=True)
     scrollbar_left = tk.Scrollbar(control_panel, orient="vertical", command=canvas_container_left.yview)
     scrollable_frame_left = tk.Frame(canvas_container_left)
 
