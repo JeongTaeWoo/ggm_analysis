@@ -29,10 +29,12 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2001, sex = "�
 # TODO evaluate_fit_metrics에 항목 추가?
 
 # TODO 벨 분포의 사용 예시로 나온 분산 - 평균 비교랑 잔차 확인
+
 # TODO HMD 자료로 써보기
 
 # TODO 사력은 c의 영향이 거의 없다(상수항이고, 값도 너무 작음) 하지만 c는 LAR의 평행이동에는 상당한 영향력이 있음. 
 # 그러면 나머지 세 변수만 잘 잡아두고 c 조절해가면서 로그우도를 측정해본다면?
+# c의 증감이 logL의 단조증가(혹은 감소)로 이어지는 거 아닌가 했는데, 그건 아닌듯?
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?

@@ -61,7 +61,6 @@ class SimpleResult:
 def result_maker(a, b, gamma, c):
     return SimpleResult([a, b, gamma, c])
 
-# TODO weight 여러종류 쓸 꺼면 class도 생각해볼만 함
 def weight_sigmoid(age, center = 90, scale = 3, max_weight = 10):
     """
     중심(center) 기준으로 sigmoid 함수 형태의 가중치를 부여

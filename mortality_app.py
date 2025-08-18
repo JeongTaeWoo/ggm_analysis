@@ -167,7 +167,8 @@ def create_gui_app():
     graph_panel.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=10, pady=10)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-    fig.suptitle(f'{year} {sex} Mortality Comparison', fontsize=16)
+    sex_title = 'Male' if sex == '남자' else 'Female'
+    fig.suptitle(f'{year} {sex_title} Mortality Comparison', fontsize=16)
 
     canvas = FigureCanvasTkAgg(fig, master=graph_panel)
     canvas_widget = canvas.get_tk_widget()
