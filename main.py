@@ -17,14 +17,16 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2001, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2018, sex = "남자")
 
 # func.run_refine_search(year, sex, output_path_result, 
 #                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
 #                             bounds = [(1e-4, 5e-4), (0.09, 0.13), (0.001, 0.3), (3e-4, 1e-3)])
 
 #func.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
-
+func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = output_path_result, 
+                                target = 'c', num_steps = 100000,  notice = True,
+                                bounds = None, step_size = None, relative_bounds_factor = 0.5)
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가?
 
@@ -33,8 +35,7 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2001, sex = "�
 # TODO HMD 자료로 써보기
 
 # TODO 사력은 c의 영향이 거의 없다(상수항이고, 값도 너무 작음) 하지만 c는 LAR의 평행이동에는 상당한 영향력이 있음. 
-# 그러면 나머지 세 변수만 잘 잡아두고 c 조절해가면서 로그우도를 측정해본다면?
-# c의 증감이 logL의 단조증가(혹은 감소)로 이어지는 거 아닌가 했는데, 그건 아닌듯?
+# 일부 경우에 c의 감소가 logL을 무조건적으로 증가시키는듯????
 
 # TODO GM과의 비교를 꼭 해야할까? 다른 논문에서 언급된거 있으면 가져다가 쓰고 나는 그냥 GGM만 돌리는게 낫지않을까?
 # 근데 이러니까 MAPE 망함... 연도별로 boundary 나눠줘야 하나?

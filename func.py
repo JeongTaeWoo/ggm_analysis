@@ -859,3 +859,114 @@ def calc_lar(params, age):
     
     lar = b * (1 - c / mu) - gamma * (1 - c / mu) * (mu - c)
     return lar
+
+def refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath, num_steps, target,
+                            step_size=None, bounds=None, relative_bounds_factor=None, notice=True):
+    """
+    특정 연도, 성별에 대해 단일 GGM 변수를 미세조정하여 최적의 logL을 찾고 엑셀에 저장합니다.
+    step_size, bounds, relative 셋중 하나의 변수만 설정해야 하며, 나머지는 None으로 두어야 합니다.
+    - step_size: 초깃값 기준 고정 거리 탐색 (bounds/relative_bounds_factor와 함께 사용 불가)
+    - bounds: [min, max] 형태의 탐색 범위 직접 지정
+    - relative_bounds_factor: 초깃값의 ±(factor)%를 탐색 범위로 지정 (예: 0.5 -> 초깃값의 50% ~ 150%)
+    """
+
+    search_values = None
+    print(f"[{year}년 {sex} {target} 변수 미세조정 시작]")
+    
+    # 1. 기존 데이터 및 생명표 데이터 불러오기
+    scale_row = get_data_from_file(filepath, year, sex)
+
+    # 필수 항목 확인
+    required_keys = ['a', 'b', 'gamma', 'c', 'logL_ggm']
+    if not all(key in scale_row and scale_row[key] is not None for key in required_keys):
+        print(f"오류: {year}년 {sex} 데이터에 필수 파라미터가 부족합니다.")
+        return False
+
+    # 2. 미세조정할 변수 및 초기값 설정
+    initial_params = [scale_row['a'], scale_row['b'], scale_row['gamma'], scale_row['c']]
+    param_map = {'a': 0, 'b': 1, 'gamma': 2, 'c': 3}
+    target_idx = param_map.get(target)
+
+    if target_idx is None:
+        raise ValueError("target은 'a', 'b', 'gamma', 'c' 중 하나여야 합니다.")
+
+    base_value = initial_params[target_idx]
+    best_logL = -np.inf
+    best_params = initial_params[:] # 초기값 복사
+
+    # 순수 로그우도 함수 (가중치 미포함)
+    neg_log_likelihood_pure = make_neg_log_likelihood(Dx, Ex, age, weight_func=None)
+    
+    provided_args = [step_size is not None, bounds is not None, relative_bounds_factor is not None]
+
+    # provided_args 리스트에 True가 단 한 개만 있는지 확인
+    if sum(provided_args) != 1:
+        raise ValueError("step_size, bounds, relative_bounds_factor 중 오직 하나만 None이 아닌 값이어야 합니다.")
+    
+    # 3. 탐색 범위 설정 (수정된 핵심 부분)
+    if relative_bounds_factor:
+        min_val = base_value * (1 - relative_bounds_factor)
+        max_val = base_value * (1 + relative_bounds_factor)
+        search_values = np.linspace(min_val, max_val, num_steps)
+        if notice: print(f"상대적 탐색 범위: {min_val:.6f} ~ {max_val:.6f}")
+    
+    elif bounds:
+        min_val, max_val = bounds
+        search_values = np.linspace(min_val, max_val, num_steps)
+        if notice: print(f"상대적 탐색 범위: {min_val:.6f} ~ {max_val:.6f}")
+
+    elif step_size: # step_size 방식
+        search_values = np.linspace(base_value - step_size * num_steps / 2, base_value + step_size * num_steps / 2, num_steps)
+        if notice: print(f"고정 거리 탐색 범위: {search_values[0]:.6f} ~ {search_values[-1]:.6f}")
+
+    # 4. 최적화 루프
+    if notice:
+        print(f"초기 {target} 값: {base_value}, 초기 logL: {scale_row['logL_ggm']:.4f}")
+
+    if search_values is None:
+        raise ValueError("search value 오류")
+    
+    for i in trange(num_steps, desc=f"'{target}' 탐색 진행 중", disable=not notice):
+        current_value = search_values[i]
+        
+        temp_params = best_params[:]
+        temp_params[target_idx] = current_value
+        
+        # logL 계산
+        try:
+            current_logL = -neg_log_likelihood_pure(temp_params)
+        except Exception as e:
+            if notice:
+                print(f"오류: {current_value}에서 logL 계산 실패 - {e}")
+            continue
+
+        # 최댓값 갱신
+        if current_logL > best_logL:
+            best_logL = current_logL
+            best_params = temp_params[:]
+    
+    # 5. 결과 비교 및 업데이트
+    existing_logL = scale_row['logL_ggm']
+    if best_logL > existing_logL:
+        if notice:
+            print(f"개선 성공! 기존 logL({existing_logL:.4f}) -> 새로운 logL({best_logL:.4f})")
+            print(f"최적 {target} 값: {best_params[target_idx]:.6f}")
+
+        # 메트릭스 재계산
+        fitted_mu, x_star = calc_ggm(best_params, age)
+        metrics = evaluate_fit_metrics(observed_mu, fitted_mu, notice=False)
+        
+        # 업데이트할 값
+        update_values = {
+            "a": best_params[0], "b": best_params[1], "gamma": best_params[2], "c": best_params[3],
+            "logL_ggm": best_logL, "x*": x_star, **metrics
+        }
+        
+        # 엑셀 파일 업데이트
+        save_result_to_excel(update_values, year, sex, filepath)
+        
+        return True
+    else:
+        if notice:
+            print(f"개선 실패, 로그우도 차이: {existing_logL - best_logL:.4f}")
+        return False
