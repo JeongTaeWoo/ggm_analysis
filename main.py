@@ -17,7 +17,7 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2018, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "남자")
 
 # func.run_refine_search(year, sex, output_path_result, 
 #                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
@@ -25,7 +25,7 @@ year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2018, sex = "�
 
 #func.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
 func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = output_path_result, 
-                                target = 'c', num_steps = 100000,  notice = True,
+                                target = 'b', num_steps = 100000,  notice = True,
                                 bounds = None, step_size = None, relative_bounds_factor = 0.5)
 #--------------------
 # TODO evaluate_fit_metrics에 항목 추가?

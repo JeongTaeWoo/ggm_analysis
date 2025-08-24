@@ -7,6 +7,7 @@
 # 본래는 Self & Liang, 1987의 연구처럼 혼합 카이제곱 분포를 사용해야 하지만, 
 # 편의상 자유도 1인 카이제곱으로 사용, 카이제곱(1, 0.95) = 3.84
 
+# TODO 기존 결과 가져오는 코드 최신화 필요
 
 # 여기에서 frailty의 발생 가능성을 측정하는 beta도 있다.
 # beta_n(sigma^2) ≈ 1 - Φ[ Φ^{-1}(1 - alpha) - sqrt(n) * (sigma^2 / kappa) ]
@@ -30,7 +31,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from scipy.stats import chi2, norm
-import numdifftools as nd # type: ignore
+import numdifftools as nd 
 
 Dx = None; Ex = None
 
@@ -189,7 +190,6 @@ def compute_kappa(theta_hat, age, gamma_index = 2):
     kappa = np.sqrt(kappa_squared)
     return kappa
 
-# 2001, 남자 ggm 적합결과 : a = 0.00002294, b = 0.10586833, gamma = 0.11240457, c = 0.00108915 (0.00002355, 0.10554539, 0.11169777, 0.00102811)
 Dx, Ex = read_excel(sex = "남자", year = 2001)
 
 params_ggm = (0.00002764, 0.10355978, 0.10113280, 0.00039967) # (a, b, gamma, c)
