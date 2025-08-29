@@ -13,8 +13,7 @@ from pathlib import Path
 # func.py 파일이 현재 실행 환경에서 접근 가능한 경로에 있어야 합니다.
 # 예를 들어, 같은 디렉토리에 func.py가 있다면 이대로 사용할 수 있습니다.
 from func import load_life_table
-plt.rcParams['font.family'] = 'Malgun Gothic' # 폰트 설정
-plt.rcParams['axes.unicode_minus'] = False # 마이너스 부호 깨짐 방지
+
 
 # 0. 사용자 XLSX 파일 불러오기
 # 사용자가 업로드한 파일의 원래 이름인 '전연령 생명표.xlsx'를 사용합니다.
@@ -80,7 +79,7 @@ y = target
 # 3. 학습 및 예측 성능 평가 (홀드아웃 검증)
 
 # 2018년 이후 데이터를 테스트 데이터로 분할 (홀드아웃 검증 시나리오)
-test_year_start = 2018
+test_year_start = 2015
 X_train = X[features['year'] < test_year_start]
 X_test = X[features['year'] >= test_year_start]
 y_train = y[features['year'] < test_year_start]
@@ -98,7 +97,7 @@ model.compile(optimizer='adam', loss='mean_squared_error', metrics=['mean_absolu
 
 # 모델 학습
 print("\n--- FNN 모델 학습 시작 ---")
-history = model.fit(X_train, y_train, epochs=100, validation_split=0.2, verbose=0)
+history = model.fit(X_train, y_train, epochs=200, validation_split=0.2, verbose=0)
 print("--- FNN 모델 학습 완료 ---\n")
 
 # 모델 성능 평가
@@ -106,7 +105,7 @@ y_pred = model.predict(X_test).flatten()
 mae = mean_absolute_error(y_test, y_pred)
 rmse = np.sqrt(mean_squared_error(y_test, y_pred))
 
-print(f"모델 평가 결과 ({test_year_start}년~2023년 데이터):")
+print(f"Result for ({test_year_start} ~ 2023):")
 print(f"Mean Absolute Error (MAE): {mae:.6f}")
 print(f"Root Mean Squared Error (RMSE): {rmse:.6f}")
 
@@ -144,15 +143,15 @@ X_prediction = pd.concat([prediction_numerical_df, prediction_gender_df], axis=1
 predicted_mortality_full = model.predict(X_prediction).flatten()
 
 # 그래프 그리기
-plt.plot(actual_data_plot['year'], actual_data_plot['mortality_rate'], 'o-', label='실제 사망확률', color='#1f77b4')
-plt.plot(years_for_prediction, predicted_mortality_full, 's--', label='예측 사망확률', color='#ff7f0e')
+plt.plot(actual_data_plot['year'], actual_data_plot['mortality_rate'], 'o-', label='Observed Mortality', color="#116daf")
+plt.plot(years_for_prediction, predicted_mortality_full, 's--', label='Predicted Mortality', color='#ff7f0e')
 
 # 테스트 데이터 기간 표시
-plt.axvline(x=test_year_start, color='red', linestyle='--', label=f'학습/테스트 데이터 분할 ({test_year_start}년)')
+plt.axvline(x=test_year_start, color='red', linestyle='--', label=f'({test_year_start})')
 
-plt.title(f'{selected_age}세 {selected_gender} 사망확률 예측 곡선 비교', fontsize=16)
-plt.xlabel('연도', fontsize=12)
-plt.ylabel('사망확률', fontsize=12)
+plt.title(f'{selected_age}, {selected_gender} Mortality Comparison', fontsize=16)
+plt.xlabel('year', fontsize=12)
+plt.ylabel('Mortality', fontsize=12)
 plt.legend(fontsize=10)
 plt.grid(True)
 plt.show()
