@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import os
 from tqdm import trange
 import traceback
+import func
 
 age = np.arange(65, 100, dtype = float)  # 65세부터 99세까지 기본값 설정
 Dx = None; Ex = None
@@ -14,7 +15,7 @@ Dx = None; Ex = None
 base_dir = Path(__file__).resolve().parent
 
 # 생명표 읽기
-life_table_path = base_dir / "65이상 생명표.xlsx"
+life_table_path = base_dir / "전연령 생명표.xlsx"
 df = pd.read_excel(life_table_path, sheet_name="Sheet1")
 
 output_path_batch = base_dir / "적합 결과.xlsx"

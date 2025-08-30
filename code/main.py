@@ -1,7 +1,7 @@
 import traceback
 import pandas as pd
 from tqdm import trange
-import func
+import ggm_model
 from pathlib import Path
 from plyer import notification
 import os
@@ -17,14 +17,14 @@ df = pd.read_excel(life_table_path, sheet_name = "Sheet1")
 output_path_result = base_dir / "측정 결과.xlsx"
 
 
-year, sex, Dx, Ex, age, observed_mu = func.load_life_table(year = 2010, sex = "남자")
+year, sex, Dx, Ex, age, observed_mu = ggm_model.load_life_table(year = 2010, sex = "남자")
 
-# func.run_refine_search(year, sex, output_path_result, 
+# ggm_model.run_refine_search(year, sex, output_path_result, 
 #                             centers = np.arange(87, 96, 1), scales = np.arange(2.0, 10.1, 0.1), max_weights = np.arange(2, 50, 0.1), 
 #                             bounds = [(1e-4, 5e-4), (0.09, 0.13), (0.001, 0.3), (3e-4, 1e-3)])
 
-#func.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
-func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = output_path_result, 
+#ggm_model.run_refine_excel(year, sex, Dx, Ex, output_path_result, observed_mu, bounds = [(1e-100, 1), (1e-100, 1), (1e-100, 1), (1e-100, 1)])
+ggm_model.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = output_path_result, 
                                 target = 'b', num_steps = 100000,  notice = True,
                                 bounds = None, step_size = None, relative_bounds_factor = 0.5)
 #--------------------
@@ -44,8 +44,8 @@ func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = o
 # center = previous_result['center'], scale = previous_result['scale'], max_weight = previous_result['max_weight']
 
 # try:
-#     previous_result = func.get_data_from_file(output_path_result, year, sex)
-#     func.find_best_scale(year, sex, Dx, Ex, age, trial = 100, n_runs = 1,
+#     previous_result = ggm_model.get_data_from_file(output_path_result, year, sex)
+#     ggm_model.find_best_scale(year, sex, Dx, Ex, age, trial = 100, n_runs = 1,
 #             center_range = 87, scale_range = 9, max_weight_range = 2, bounds = [(3e-4, 3e-3), (0.08, 0.14), (0.01, 0.3), (3e-5, 3e-3)],
 #                     filepath = output_path_result, notice = True, show_graph = True, compare_gm = False,
 #                     best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
@@ -65,7 +65,7 @@ func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = o
 #-------------------- for문 사용할 때
 #center_range = (85, 96, 1), scale_range = (1.0, 10.1, 0.5), max_weight_range = (6, 12, 1)
 
-# previous_result = func.get_data_from_file(output_path_result, year, sex) 
+# previous_result = ggm_model.get_data_from_file(output_path_result, year, sex) 
 # temp_best_logL_ggm = previous_result['logL_ggm'] if previous_result['logL_ggm'] is not None else -np.inf
 # temp_best_result = None
 # temp_best_scale_params = None
@@ -77,7 +77,7 @@ func.refine_single_param_excel(year, sex, Dx, Ex, age, observed_mu, filepath = o
 #             try:
 #                 print(f"\ncenter = {i}, scale = {j}, max weight = {k}")
                 
-#                 best_result, best_logL_ggm, best_scale_params, result_gm = func.find_best_scale(year = year, sex = sex, trial = 100,  n_runs = 1, 
+#                 best_result, best_logL_ggm, best_scale_params, result_gm = ggm_model.find_best_scale(year = year, sex = sex, trial = 100,  n_runs = 1, 
 #                                     center_range = i, scale_range = j, max_weight_range = k, show_graph = False,
 #                                     Dx = Dx, Ex = Ex, age = age, filepath = output_path_result, notice = False, compare_gm = False,
 #                                     best_logL_ggm = previous_result['logL_ggm'], best_logL_gm = previous_result['logL_gm'])
