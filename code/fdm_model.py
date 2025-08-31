@@ -1,126 +1,93 @@
-import numpy as np
+import func
 import pandas as pd
-from sklearn.decomposition import PCA
-from statsmodels.tsa.arima.model import ARIMA
-from scipy.interpolate import UnivariateSpline
+import numpy as np
 import matplotlib.pyplot as plt
-import func  # func.py 파일을 그대로 import
+from skfda import FDataGrid
+from skfda.preprocessing.dim_reduction import FPCA
+from statsmodels.tsa.arima.model import ARIMA
+from tqdm.autonotebook import tqdm
 
-def fit_and_forecast_fdm(sex='남자', forecast_years=10):
-    """
-    FDM 모형을 적용하여 사망률을 예측하고 결과를 시각화합니다.
-    func.py의 load_life_table 함수를 사용하여 데이터를 로드합니다.
-    """
-    log_mortality_data = load_mortality_data_from_func(sex=sex)
-    
-    if log_mortality_data is None:
-        print("데이터 로딩에 실패했습니다. 파일 경로와 형식을 확인해주세요.")
-        return
+# --- 1단계: 데이터 불러오기 및 전처리 ---
+filepath = "전연령 생명표.xlsx"
+sex_male = '남자'
+sex_female = '여자'
 
-    # FDM 모형의 2, 3, 4단계 구현
-    # 2. 평균 함수 추정
-    mean_function = log_mortality_data.mean(axis=0)
+try:
+    years, ages, mortality_male_df, _, _ = func.load_life_table(key='kr', sex=sex_male)
+    _, _, mortality_female_df, _, _ = func.load_life_table(key='kr', sex=sex_female)
 
-    # 3. 주성분 분석 (FPCA)
-    deviations = log_mortality_data.sub(mean_function, axis=1)
-    
-    pca = PCA(n_components=3)
-    principal_components = pca.fit_transform(deviations)
-    functional_pcs = pca.components_
-    principal_component_scores = pd.DataFrame(principal_components, index=deviations.index)
-    
-    # 4. 시계열 예측 (ARIMA)
-    forecasted_scores = pd.DataFrame()
-    for i in range(principal_component_scores.shape[1]):
-        model = ARIMA(principal_component_scores.iloc[:, i], order=(1, 1, 0))
-        model_fit = model.fit()
-        forecast = model_fit.forecast(steps=forecast_years)
-        forecasted_scores[i] = forecast
-        
-    forecasted_deviations = forecasted_scores @ functional_pcs
-    forecasted_log_mortality = forecasted_deviations.add(mean_function, axis=1)
-    
-    # 결과 정리
-    current_year = max(pd.to_numeric(log_mortality_data.index))
-    forecast_index = pd.RangeIndex(start=current_year + 1, stop=current_year + 1 + forecast_years)
-    forecasted_log_mortality.index = forecast_index
-    
-    # 예측된 로그 사망률을 사망률로 변환
-    forecasted_mortality = np.exp(forecasted_log_mortality)
-    
-    print(f"{sex} 사망률 예측 결과:")
-    print(forecasted_mortality)
-    
-    original_mortality = np.exp(log_mortality_data)
-    
-    plt.figure(figsize=(12, 8))
-    ages_to_plot = [20, 40, 60, 80, 90]
-    
-    for age in ages_to_plot:
-        if age in original_mortality.columns:
-            combined_data = pd.concat([original_mortality[age], forecasted_mortality[age]])
-            combined_data.plot(label=f'Age {age}', marker='o', linestyle='-')
-            
-    plt.title(f'FDM Mortality Forecast for {sex}')
-    plt.xlabel('Year')
-    plt.ylabel('Mortality Rate')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+except ValueError as e:
+    print(f"Error: {e}")
+    exit()
 
-def load_mortality_data_from_func(sex='남자'):
-    """
-    func.py의 load_life_table 함수를 사용하여 사망률 데이터를 로드합니다.
-    """
-    # func.py에 정의된 df를 직접 사용
-    if func.df is None:
-        return None
-        
-    # 데이터는 행과 열이 뒤바뀐 구조이므로, 미리 전처리
-    data = func.df.set_index('title').drop(['age'], axis=1)
-    
-    years = data.columns
-    ages = pd.to_numeric(func.df[func.df['title'] == 'age'].iloc[0, 2:].values)
-    
-    log_mortality_rates = []
-    
-    for year in years:
-        # func.py의 load_life_table 함수를 호출
-        # 함수가 반환하는 순서를 그대로 따릅니다: q_x, l_x, d_x, year, age
-        # FDM 모형 구현에 필요한 d_x (사망자 수)와 l_x (생존자 수)를 사용
-        
-        q_x, l_x, d_x, _, _ = func.load_life_table(year, sex)
-        
-        # Dx와 Ex는 단일 값이므로, 전체 연령대의 데이터가 필요하다면
-        # func.py의 df를 직접 활용하는 것이 더 효율적입니다.
-        
-        # 여기서는 func.py에서 로드된 df를 직접 사용해 전체 데이터를 가져옵니다.
-        # 이 부분이 func.py를 그대로 사용하면서 FDM 모형에 필요한
-        # 전체 데이터를 로드하는 가장 합리적인 방법입니다.
-        
-        if sex == '남자':
-            Dx = data.loc['사망자(남자)']
-            Ex = data.loc['정지인구(남자)']
-        else:
-            Dx = data.loc['사망자(여자)']
-            Ex = data.loc['정지인구(여자)']
-            
-    # 사망자 수와 정지인구 수로 사망률 계산
-    mortality = Dx.values / Ex.values
-    log_mortality = np.log(mortality)
+print("데이터 로딩 완료.")
+print(f"남성 사망률 데이터 형태: {mortality_male_df.shape}")
+print(f"여성 사망률 데이터 형태: {mortality_female_df.shape}")
+print(f"사망률 데이터프레임의 마지막 연령: {mortality_male_df.index.values[-1]}")
 
-    return pd.DataFrame([log_mortality], index=years, columns=ages).T
+# --- 2단계: 로그 사망률 변환 및 FPCA ---
+log_mortality_male = np.log(mortality_male_df.values.T + 1e-10)
+log_mortality_female = np.log(mortality_female_df.values.T + 1e-10)
 
-def smooth_mortality_rates(log_mortality_rates):
-    """B-spline을 사용하여 로그 사망률 데이터를 평활화합니다."""
-    smoothed_rates = log_mortality_rates.copy()
-    ages = smoothed_rates.columns.values
-    
-    for year in smoothed_rates.index:
-        spline = UnivariateSpline(ages, smoothed_rates.loc[year], s=10)
-        smoothed_rates.loc[year] = spline(ages)
-        
-    return smoothed_rates
+# FPCA
+fpca_male = FPCA(n_components=3)
+fpca_male.fit(FDataGrid(data_matrix=log_mortality_male, grid_points=ages))
+scores_male = fpca_male.transform(FDataGrid(data_matrix=log_mortality_male, grid_points=ages))
 
-# FDM 모형 구현 및 예측 실행
-fit_and_forecast_fdm(sex='남자')
+fpca_female = FPCA(n_components=3)
+fpca_female.fit(FDataGrid(data_matrix=log_mortality_female, grid_points=ages))
+scores_female = fpca_female.transform(FDataGrid(data_matrix=log_mortality_female, grid_points=ages))
+
+print("\nFPCA 완료.")
+
+# --- 3단계: 주성분 점수 시계열 예측 (ARIMA) ---
+future_years = 7
+forecast_years = [int(years[-1]) + i for i in range(1, future_years + 1)]
+forecast_scores_male = np.zeros((future_years, fpca_male.n_components))
+forecast_scores_female = np.zeros((future_years, fpca_female.n_components))
+
+print("\nARIMA 모델을 사용하여 주성분 점수 예측 중...")
+for i in tqdm(range(fpca_male.n_components), desc="남성 예측"):
+    model = ARIMA(scores_male[:, i], order=(1, 1, 0))
+    model_fit = model.fit()
+    forecast_scores_male[:, i] = model_fit.forecast(steps=future_years)
+
+for i in tqdm(range(fpca_female.n_components), desc="여성 예측"):
+    model = ARIMA(scores_female[:, i], order=(1, 1, 0))
+    model_fit = model.fit()
+    forecast_scores_female[:, i] = model_fit.forecast(steps=future_years)
+
+# --- 4단계: 미래 사망률 재구성 및 변환 ---
+# 오류가 발생했던 부분을 수정했습니다.
+# 평균 함수 데이터의 형태를 (99, 1)에서 (1, 99)로 변경하여 브로드캐스팅 오류를 해결합니다.
+reconstructed_log_mortality_male = fpca_male.mean_.data_matrix[0].T + np.dot(forecast_scores_male, fpca_male.components_.data_matrix.squeeze())
+reconstructed_mortality_male = np.exp(reconstructed_log_mortality_male)
+
+reconstructed_log_mortality_female = fpca_female.mean_.data_matrix[0].T + np.dot(forecast_scores_female, fpca_female.components_.data_matrix.squeeze())
+reconstructed_mortality_female = np.exp(reconstructed_log_mortality_female)
+
+# --- 5단계: 결과 시각화 ---
+print("\n결과를 시각화합니다.")
+plt.figure(figsize=(12, 6))
+plt.title('Male mortality forecast (FDM)')
+plt.xlabel('Age')
+plt.ylabel('Mortality Rate')
+for col in mortality_male_df.columns:
+    plt.plot(mortality_male_df.index, mortality_male_df[col], color='gray', alpha=0.5)
+for i, year in enumerate(forecast_years):
+    plt.plot(ages, reconstructed_mortality_male[i], linestyle='--', label=f'Forecast {year}')
+plt.legend(['Observed', 'Forecast'])
+plt.grid(True)
+plt.show()
+
+plt.figure(figsize=(12, 6))
+plt.title('Female mortality forecast (FDM)')
+plt.xlabel('Age')
+plt.ylabel('Mortality Rate')
+for col in mortality_female_df.columns:
+    plt.plot(mortality_female_df.index, mortality_female_df[col], color='gray', alpha=0.5)
+for i, year in enumerate(forecast_years):
+    plt.plot(ages, reconstructed_mortality_female[i], linestyle='--', label=f'Forecast {year}')
+plt.legend(['Observed', 'Forecast'])
+plt.grid(True)
+plt.show()
