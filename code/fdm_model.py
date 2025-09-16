@@ -34,7 +34,7 @@ mortality_female_fitting = mortality_female_df.loc[:, str(fitting_start_year):st
 
 # 2011년부터 2023년까지의 실제값을 예측값과 비교하기 위해 별도 저장
 forecast_start_year = fitting_end_year + 1
-forecast_end_year = 2023
+forecast_end_year = 2015
 future_years = forecast_end_year - fitting_end_year
 mortality_male_actual = mortality_male_df.loc[:, str(forecast_start_year):str(forecast_end_year)]
 mortality_female_actual = mortality_female_df.loc[:, str(forecast_start_year):str(forecast_end_year)]
@@ -48,9 +48,9 @@ log_mortality_male = np.log(mortality_male_fitting.values.T + 1e-10)
 log_mortality_female = np.log(mortality_female_fitting.values.T + 1e-10)
 
 # B-스플라인 기저 함수를 사용하여 평활화
-n_basis = 20
+n_basis = 100
 spline_basis = BSplineBasis(n_basis=n_basis, domain_range=(ages.min(), ages.max()))
-lambda_val = 0.01
+lambda_val = 0.00001
 
 smoothed_data_male = FDataGrid(data_matrix=log_mortality_male, grid_points=ages).to_basis(
     basis=spline_basis,
@@ -62,11 +62,11 @@ smoothed_data_female = FDataGrid(data_matrix=log_mortality_female, grid_points=a
 )
 
 # --- 3단계: 함수적 주성분분석(FPCA) ---
-fpca_male = FPCA(n_components=3)
+fpca_male = FPCA(n_components = 3)
 fpca_male.fit(smoothed_data_male)
 scores_male = fpca_male.transform(smoothed_data_male)
 
-fpca_female = FPCA(n_components=3)
+fpca_female = FPCA(n_components = 3)
 fpca_female.fit(smoothed_data_female)
 scores_female = fpca_female.transform(smoothed_data_female)
 
@@ -110,16 +110,16 @@ log_mortality_male_actual = np.log(mortality_male_actual.values.T + 1e-10)
 log_mortality_female_actual = np.log(mortality_female_actual.values.T + 1e-10)
 
 # 남성 오차 계산
-mfe_male = np.mean(reconstructed_log_mortality_male - log_mortality_male_actual)
-mafe_male = np.mean(np.abs(reconstructed_log_mortality_male - log_mortality_male_actual))
-mae_male = np.mean(np.abs(reconstructed_log_mortality_male - log_mortality_male_actual))
+mfe_male = np.mean(reconstructed_mortality_male - mortality_male_actual.values.T) 
+mafe_male = np.mean(np.abs(reconstructed_mortality_male - mortality_male_actual.values.T))
+mae_male = np.mean(np.abs(reconstructed_mortality_male - mortality_male_actual.values.T))
 
 # 여성 오차 계산
-mfe_female = np.mean(reconstructed_log_mortality_female - log_mortality_female_actual)
-mafe_female = np.mean(np.abs(reconstructed_log_mortality_female - log_mortality_female_actual))
-mae_female = np.mean(np.abs(reconstructed_log_mortality_female - log_mortality_female_actual))
+mfe_female = np.mean(reconstructed_mortality_female - mortality_female_actual.values.T)
+mafe_female = np.mean(np.abs(reconstructed_mortality_female - mortality_female_actual.values.T))
+mae_female = np.mean(np.abs(reconstructed_mortality_female - mortality_female_actual.values.T))
 
-print("\n--- Forecast Error Analysis (2011-2023) ---")
+print(f"\n--- Forecast Error Analysis ({forecast_start_year}-{forecast_end_year}) ---")
 print(f"Male Mean Forecast Error (MFE): {mfe_male:.4f}")
 print(f"Male Mean Absolute Forecast Error (MAFE): {mafe_male:.4f}")
 print(f"Male Mean Absolute Error (MAE): {mae_male:.4f}")

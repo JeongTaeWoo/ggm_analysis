@@ -1,3 +1,17 @@
-1. 기존에 시도되지 않았던 비모수방법 시도 (구려서 안쓴거면 곤란해지긴 함)
-2. 인풋, 아웃풋 나눠서 시도하고 비교하는 선행연구 없으면 해보기
-3. 0세 이후에 사망률 떨어지는 지점 자르고 15?세 이후만 학습시키면 결과 달라지나 해보기 (이 이후엔 계속해서 증가만 하니까)
+기존에 시도되지 않았던 비모수방법 시도 (구려서 안쓴거면 곤란해지긴 함)
+
+0세 이후에 사망률 떨어지는 지점 자르고 15?세 이후만 학습시키면 결과 달라지나 해보기 (이 이후엔 계속해서 증가만 하니까)
+
+vector error correction models or cointegration techniques (Arnold & Sherris, 2013, 2015; Arnold & Glushko, 2021)
+
+multinomial logistic regression (MLR) method (Alai et al., 2015)
+
+forecast reconciliation techniques to ensure coherence between aggregate and cause-specific mortality projections (Li & Lu, 2019)
+
+hierarchical Archimedean copula approach (Li et al., 2019)
+
+stochastic age-period-cohort models (Redondo-Loures and Cairns, 2021)
+
+Zhang et al. (2023) demonstrate the strong out-of-sample predictive performance of their ADAPT model
+compared to MLR, unpenalized CPD, and some existing models, including the cause-specific LC
+model and the product-ratio model (Hyndman et al., 2013). 
